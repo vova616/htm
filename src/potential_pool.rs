@@ -248,7 +248,7 @@ impl PotentialPool {
     }     
 
     pub fn connection_by_global_index(&self, global_index: usize) -> &Synapse  {
-        &self.synapses_columns[global_index / self.size_column]
+        &self.synapses_columns[global_index]
     }
 
     #[inline]
