@@ -70,6 +70,7 @@ pub struct SpatialPooler {
     pub winner_columns: Vec<usize>,
     pub update_inputs: HashSet<usize>,
     pub tie_broken_overlaps: Vec<f32>,
+    //pub kdtree: KdTree<usize>,
 
     pub compability_mode: bool,
 }
@@ -154,6 +155,7 @@ impl SpatialPooler {
             tie_broken_overlaps: vec![0.0; column_size],
             update_inputs: HashSet::with_capacity(column_size),
             compability_mode: false,
+            //kdtree: KdTree::new_with_capacity(column_dimensions.len(), column_size),
         };
         c
     }
@@ -192,7 +194,7 @@ impl SpatialPooler {
         self.calculate_overlaps(input_vector);
         self.boost(learn);
         self.inhibit_columns();
-
+        
         if learn {
            self.adapt_synapses(input_vector);
            self.update_duty_cycles();
@@ -212,7 +214,6 @@ impl SpatialPooler {
 
     pub fn adapt_synapses(&mut self, input_vector: &[bool]) {
         self.update_inputs.clear();
-
         for column in &self.winner_columns {
             for val in self.potential_pool.connections_by_index_mut(*column).iter_mut() {
                 if input_vector[val.index as usize] {
@@ -220,7 +221,6 @@ impl SpatialPooler {
                 } else {
                     val.permanence -= self.syn_perm_options.inactive_dec;
                 }
-                //self.update_inputs.insert(val.index as usize);
             }
             self.potential_pool.update_permanences_for_column(*column, true, (self.stimulus_threshold + 0.5) as i32, &self.syn_perm_options);
         }
@@ -247,11 +247,11 @@ impl SpatialPooler {
     }
 
     pub fn bump_up_weak_columns(&mut self) {
+        let connected = self.syn_perm_options.connected;
         for ((column, overlap_duty_cycle), min_overlap_duty_cycle) in self.overlap_duty_cycles.iter().enumerate().zip(self.min_overlap_duty_cycles.iter()) {
             if (min_overlap_duty_cycle > overlap_duty_cycle) {
                 for val in self.potential_pool.connections_by_index_mut(column) {
                     val.permanence += self.syn_perm_options.below_stimulus_inc;
-                    //self.update_inputs.insert(val.index as usize);
                 }
                 self.potential_pool.update_permanences_for_column(column, true, (self.stimulus_threshold + 0.5) as i32, &self.syn_perm_options);
             }
@@ -353,30 +353,14 @@ impl SpatialPooler {
 
     pub fn calculate_overlaps(&mut self, input_vector: &[bool])
     {
-        for val in &mut self.overlaps {
-            *val = 0.0;
+        let connected = self.syn_perm_options.connected;
+        for column in 0..self.num_columns {
+            let mut counter = 0;
+            for con in self.potential_pool.connections_by_index(column) {
+                counter += (con.permanence > connected) as usize;
+            }
+            self.overlaps[column] = counter as f32;
         }
-        
-        /*
-        for (in_index,&val) in input_vector.iter().enumerate() {
-            if val {
-                for &col_index in self.potential_pool.connections_by_input(in_index, true) {
-                   self.overlaps[self.potential_pool.column_global_index_to_column(col_index)] += 1.0;
-                }
-            }   
-        }
-        */
-        
-        for (in_index,&val) in input_vector.iter().enumerate() {
-            if val {
-                for &col_index in self.potential_pool.connections_by_input(in_index, false) {
-                   if (self.potential_pool.connection_by_global_index(col_index).permanence >= self.syn_perm_options.connected) {
-                        self.overlaps[self.potential_pool.column_global_index_to_column(col_index)] += 1.0;
-                   }
-                }
-            }   
-        }
-        
     }
 
     pub fn update_iteration_number(&mut self, learn: bool) {
@@ -408,7 +392,7 @@ impl SpatialPooler {
 
      pub fn inhibit_columns_global(&mut self, density: f32) {
         let mut numActive = (density * self.num_columns as f32) as usize;
-
+        
         //is safe as long as we allocate in constructor
         unsafe{ 
             let cap = self.winner_columns.capacity();
@@ -495,7 +479,6 @@ impl SpatialPooler {
             self.potential_pool.update_permanences_for_column(i, true, (self.stimulus_threshold + 0.5) as i32, &self.syn_perm_options);
         }       
         //self.potential_pool.test_connections();
-        self.potential_pool.setup_input_pool(&self.syn_perm_options);
         // The inhibition radius determines the size of a column's local
         // neighborhood.  A cortical column must overcome the overlap score of
         // columns in its neighborhood in order to become active. This radius is

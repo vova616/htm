@@ -18,14 +18,13 @@ extern crate quickersort;
 extern crate rayon;
 extern crate time;
 
-
 use rand::*;
 use spatial_pooler::SpatialPooler;
 use universal_rand::*;
 use time::PreciseTime;
 
-fn main() { 
 
+fn main() { 
     let mut sp = SpatialPooler::new(vec![32,32], vec![64,64]);
     sp.potential_radius = sp.num_inputs as i32;
     sp.global_inhibition = false;
@@ -53,8 +52,10 @@ fn main() {
 
         print!("Computing");
         let start = PreciseTime::now();
-        sp.compute(&input, &mut active_array, false);
+        sp.compute(&input, &mut active_array, true);
         println!(": {:?}", start.to(PreciseTime::now()).num_microseconds().unwrap() as f64 / 1000.0);
+        //println!("{:?}", sp.overlaps);
+        //println!("{:?}", sp.winner_columns);
     }
 
 }
