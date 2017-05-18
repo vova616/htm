@@ -1,0 +1,17 @@
+[package]
+name = "htm"
+version = "0.1.0"
+authors = ["Vovchik <vova616@gmail.com>"]
+
+[dependencies]
+collect_slice = "^1.2.0"
+bit-vec = "0.4.3"
+rand = "0.3"
+clippy = "*"
+quickersort = "2.1.0"
+rayon = "0.7.0"
+time = "*"
+
+[profile.release]
+debug = true
+
