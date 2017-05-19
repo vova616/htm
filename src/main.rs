@@ -52,7 +52,8 @@ fn main() {
         sp.compute(&input, &mut active_array, true);
         println!(": {:?}", start.to(PreciseTime::now()).num_microseconds().unwrap() as f64 / 1000.0);
         //println!("{:?}", sp.overlaps);
-        //println!("{:?}", sp.winner_columns);
-    }
+        sp.winner_columns.sort();
+        println!("{:?}", sp.winner_columns);
+    }   
 
-}
+}   

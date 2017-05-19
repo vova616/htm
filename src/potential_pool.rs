@@ -10,7 +10,7 @@ use quickersort;
 #[derive(Debug)]
 pub struct PotentialPool {
     pub synapses_columns: Vec<Synapse>,
-    sizes_columns: Vec<usize>,
+    sizes_columns: Vec<(usize,usize)>,
     size_column: usize,
 }
 
@@ -24,7 +24,7 @@ impl PotentialPool {
     pub fn new(column_size: usize, max_potential: usize, input_size: usize) -> PotentialPool {
         PotentialPool {
             synapses_columns: vec![Synapse{index:-2,permanence:0.0}; column_size * max_potential],
-            sizes_columns: vec![0; column_size],
+            sizes_columns: vec![(0,0); column_size],
             size_column: max_potential,
         }
     }
@@ -33,7 +33,7 @@ impl PotentialPool {
         let mut size = 0;
         {
             let connected_pct = init_connected_pct as f32;
-            let perms = self.permanences_mut(column);
+            let perms = self.permanences_by_index_mut(column.index);
             
             for &value in potential {
                 let perm = if  rand.next_f32() <= connected_pct {
@@ -50,16 +50,40 @@ impl PotentialPool {
                 size += 1;
             }
         }
-        self.sizes_columns[column.index] = size;
+        self.sizes_columns[column.index].0 = size;
+
+        self.sort_input_synapses(column.index, options.connected);
     }
+
+    pub fn sort_input_synapses(&mut self, index: usize, connected: f32) {
+         let range = self.connections_by_index_range(index);
+         if (range.end - range.start <= 0) {
+             return;
+         }
+         let arr = &mut self.synapses_columns;
+ 
+         {
+             //Faster sort with pivot connected O(n) 
+             //Maybe a sort with pivot and then index is slighty better for cache
+            let mut pivot = range.start;
+             for i in range.clone() {
+                 if arr[i].permanence >= connected {
+                     if (pivot != i) {
+                         arr.swap(i, pivot);
+                     }
+                     pivot += 1;
+                 }
+             }
+             self.sizes_columns[index].1 = pivot - range.start;
+         }
+      }
 
     pub fn update_permanences_for_column(&mut self, column_index: usize, raise_prem: bool, stimulus_threshold: i32, options: &SynapsePermenenceOptions)
     {   
         if raise_prem {
             self.raise_permanence_to_threshold(column_index, stimulus_threshold, options);
         }
-        let perms = self.connections_by_index_mut(column_index);
-        for mut value in &mut *perms {
+        for mut value in self.connections_by_index_mut(column_index) {
             if value.index >= 0 {
                 if (value.permanence <= options.trim_threshold) {
                     value.permanence = 0.0;
@@ -68,6 +92,7 @@ impl PotentialPool {
                 }
             }
         }
+        self.sort_input_synapses(column_index, options.connected);
     }
 
     pub fn raise_permanence_to_threshold(&mut self, column_index: usize, stimulus_threshold: i32, options: &SynapsePermenenceOptions) {
@@ -90,37 +115,47 @@ impl PotentialPool {
         arr.binary_search_by(|syn| syn.index.cmp(&index)).unwrap()
     }
 
-    pub fn permanences_mut(&mut self, column: &Column) -> &mut [Synapse] {
-        let index = column.index * self.size_column;
-        let end_index = index + self.size_column;
-        &mut self.synapses_columns[index..end_index]
-    }
-
-    pub fn permanences(&self, column: &Column) -> & [Synapse] {
-        let index = column.index * self.size_column;
-        let end_index = index + self.size_column;
-        &self.synapses_columns[index..end_index]
-    }   
-
-    pub fn permanences_by_index_mut(&mut self, index: usize) -> &mut [Synapse] {
+    pub fn permanences_by_index_range(&self, index: usize) -> std::ops::Range<usize>  {
         let start_index = index * self.size_column;
         let end_index = start_index + self.size_column;
-        &mut self.synapses_columns[start_index..end_index]
+        start_index..end_index
+    } 
+
+    pub fn connections_by_index_range(&self, index: usize) -> std::ops::Range<usize>  {
+        let start_index = index * self.size_column;
+        let end_index = start_index + self.sizes_columns[index].0;
+        start_index..end_index
+    } 
+
+     pub fn connected_by_index_range(&self, index: usize) -> std::ops::Range<usize>  {
+        let start_index = index * self.size_column;
+        let end_index = start_index + self.sizes_columns[index].1;
+        start_index..end_index
+    } 
+
+    pub fn permanences_by_index_mut(&mut self, index: usize) -> &mut [Synapse] {
+        let range = self.permanences_by_index_range(index);
+        &mut self.synapses_columns[range]
     }
 
     pub fn permanences_by_index(&self, index: usize) -> & [Synapse] {
-        let start_index = index * self.size_column;
-        let end_index = start_index + self.size_column;
-        &self.synapses_columns[start_index..end_index]
+        let range = self.permanences_by_index_range(index);
+        &self.synapses_columns[range]
     }   
 
+    pub fn connected_by_index(&self, index: usize) -> & [Synapse]  {
+        let range = self.connected_by_index_range(index);
+        &self.synapses_columns[range]
+    } 
+
     pub fn connections_by_index(&self, index: usize) -> & [Synapse]  {
-         &self.permanences_by_index(index)[0..self.sizes_columns[index]]
+        let range = self.connections_by_index_range(index);
+        &self.synapses_columns[range]
     } 
 
     pub fn connections_by_index_mut(&mut self, index: usize) -> &mut [Synapse]  {
-         let size = self.sizes_columns[index];
-         &mut self.permanences_by_index_mut(index)[0..size]
+        let range = self.connections_by_index_range(index);
+        &mut self.synapses_columns[range]
     }   
 
     pub fn test_connections(&self)
@@ -137,14 +172,7 @@ impl PotentialPool {
     }
 
     
-    pub fn connections(&self, column: &Column) -> & [Synapse]  {
-         &self.permanences(column)[0..self.sizes_columns[column.index]]
-    } 
-
-    pub fn connections_mut(&mut self, column: &Column) -> &mut [Synapse]  {
-         let size = self.sizes_columns[column.index];
-         &mut self.permanences_mut(column)[0..size]
-    }     
+   
 
     #[inline]
     pub fn connection_by_global_index(&self, global_index: usize) -> &Synapse  {

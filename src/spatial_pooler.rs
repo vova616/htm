@@ -155,7 +155,6 @@ impl SpatialPooler {
             tie_broken_overlaps: vec![0.0; column_size],
             update_inputs: HashSet::with_capacity(column_size),
             compability_mode: false,
-            //kdtree: KdTree::new_with_capacity(column_dimensions.len(), column_size),
         };
         c
     }
@@ -204,7 +203,6 @@ impl SpatialPooler {
                 self.update_inhibition_radius();
                 self.update_min_duty_cycles();
            }
-           //self.potential_pool.update_input_synapses(self.update_inputs.iter(), self.syn_perm_options.connected);
         }
 
       //  println!("{}", self.update_inputs.len());
@@ -356,8 +354,8 @@ impl SpatialPooler {
         let connected = self.syn_perm_options.connected;
         for column in 0..self.num_columns {
             let mut counter = 0;
-            for con in self.potential_pool.connections_by_index(column) {
-                counter += (con.permanence > connected) as usize;
+            for con in self.potential_pool.connected_by_index(column) {
+                counter += input_vector[con.index as usize] as usize;
             }
             self.overlaps[column] = counter as f32;
         }
@@ -503,7 +501,7 @@ impl SpatialPooler {
 
             let mut total:f64 = 0.0;
             for column in &self.columns {
-                let cs = self.potential_pool.connections(column);
+                let cs = self.potential_pool.connections_by_index(column.index);
                 for val in &mut max {
                     *val = -1;
                 }
