@@ -393,14 +393,9 @@ impl SpatialPooler {
      pub fn inhibit_columns_global(&mut self, density: f32) {
         let mut numActive = (density * self.num_columns as f32) as usize;
         
-        //is safe as long as we allocate in constructor
-        unsafe{ 
-            let cap = self.winner_columns.capacity();
-            self.winner_columns.set_len(cap); 
-        }
-
-        for (i,val) in self.winner_columns.iter_mut().enumerate() {
-            *val = self.num_columns-i-1;
+        self.winner_columns.clear();
+        for i in 0..self.num_columns {
+            self.winner_columns.push(self.num_columns-i-1);
         }   
 
         //TODO: use quickersort.
@@ -418,14 +413,7 @@ impl SpatialPooler {
             numActive -= 1;
         }
 
-        //is safe as long as we allocate in constructor
-        unsafe{ 
-            if (numActive <= self.winner_columns.capacity()) {
-                self.winner_columns.set_len(numActive); 
-            } else {
-                panic!("shouldn't happen");
-            }
-        }   
+        self.winner_columns.truncate(numActive);
      }
 
      pub fn inhibit_columns_local(&mut self, density: f32) {
