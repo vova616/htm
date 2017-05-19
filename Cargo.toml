@@ -7,7 +7,6 @@ authors = ["Vovchik <vova616@gmail.com>"]
 collect_slice = "^1.2.0"
 bit-vec = "0.4.3"
 rand = "0.3"
-clippy = "*"
 quickersort = "2.1.0"
 rayon = "0.7.0"
 time = "*"

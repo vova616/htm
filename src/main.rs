@@ -1,9 +1,6 @@
 #![feature(conservative_impl_trait)]
 #![allow(dead_code)]
 
-#![feature(plugin)]
-#![plugin(clippy)]
-
 mod spatial_pooler;
 mod column;
 mod topology;
