@@ -22,7 +22,7 @@ impl<'a> Iterator for TopologyCoordinateIterator<'a> {
         if self.i < self.dimension_multiples.len() {
             let quotient = self.index / self.dimension_multiples[self.i];
             self.index %= self.dimension_multiples[self.i];
-            self.i += 1;    
+            self.i += 1;
             Some(quotient)
         } else {
             None
@@ -46,7 +46,6 @@ pub struct TopologyIterator<'a> {
 }
 
 impl<'a> TopologyIterator<'a> {
-
     #[inline]
     fn new(topology: &Topology, index: usize, radius: usize, wrapping: bool) -> TopologyIterator {
         let mut iter = TopologyIterator {
@@ -97,9 +96,10 @@ impl<'a> TopologyIterator<'a> {
                 })
                 .collect_slice(&mut iter.items)
         };
-        iter.total_size = iter.items[0..iter.dim].iter()
+        iter.total_size = iter.items[0..iter.dim]
+            .iter()
             .fold(1usize, |acc, tp| acc * (tp.upper - tp.lower) as usize);
-        
+
 
         iter
     }
@@ -135,7 +135,8 @@ impl<'a> Iterator for TopologyIterator<'a> {
             match self.items[self.index].next() {
                 Some(number) => {
                     self.vec[self.index] = number;
-                    let r = Some(self.topology.index_from_coordinates_slice(&self.vec[0..self.dim]));
+                    let r = Some(self.topology
+                                     .index_from_coordinates_slice(&self.vec[0..self.dim]));
                     return r;
                 }
                 None => {
@@ -161,16 +162,15 @@ pub struct TopologyChildIterator {
 }
 
 impl Default for TopologyChildIterator {
-
     #[inline]
     fn default() -> TopologyChildIterator {
-       TopologyChildIterator {
+        TopologyChildIterator {
             upper: 0,
             lower: 0,
             index: 0,
             len: 0,
             dim: 0,
-       }
+        }
     }
 }
 
@@ -231,7 +231,8 @@ impl Topology {
 
     pub fn distance(&self, index: usize, index2: usize) -> usize {
         let mut max = 0isize;
-        for (x,y) in self.compute_coordinates(index).zip(self.compute_coordinates(index2)) {
+        for (x, y) in self.compute_coordinates(index)
+                .zip(self.compute_coordinates(index2)) {
             let abs = (x as isize - y as isize).abs();
             if abs > max {
                 max = abs;

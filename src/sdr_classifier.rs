@@ -2,13 +2,14 @@ use std::collections::VecDeque;
 use std;
 use numext::ClipExt;
 
-pub struct SDRClassifier<T> where T: std::clone::Clone {
-    
+pub struct SDRClassifier<T>
+    where T: std::clone::Clone
+{
     /**
      * The alpha used to adapt the weight matrix during
      * learning. A larger alpha results in faster adaptation to the data.
      */
-    alpha :f32, //  : 0.001,
+    alpha: f32, //  : 0.001,
     /**
 	 * Used to track the actual value within each
      * bucket. A lower actValueAlpha results in longer term memory
@@ -23,12 +24,12 @@ pub struct SDRClassifier<T> where T: std::clone::Clone {
      * This contains the offset between the recordNum (provided by caller) and
      * learnIteration (internal only, always starts at 0).
      */
-    record_num_minus_learn_iteration: i32,  //= -1;
-	/**
+    record_num_minus_learn_iteration: i32, //= -1;
+    /**
 	 * This contains the highest value we've ever seen from the list of active cell indexes
 	 * from the TM (patternNZ). It is used to pre-allocate fixed size arrays that holds the weights.
 	 */
-	max_input_idx: usize,  // = 0;
+    max_input_idx: usize, // = 0;
 
     /**
      * This contains the value of the highest bucket index we've ever seen
@@ -37,7 +38,7 @@ pub struct SDRClassifier<T> where T: std::clone::Clone {
      */
     max_bucket_idx: usize,
 
-	/**
+    /**
 	 * The connection weight matrix
 	 */
     weight_matrix: Vec<Vec<Vec<f32>>>,
@@ -57,8 +58,9 @@ pub struct SDRClassifier<T> where T: std::clone::Clone {
     actual_values: Vec<Option<T>>,
 }
 
-impl<T> SDRClassifier<T> where T: std::clone::Clone {
-
+impl<T> SDRClassifier<T>
+    where T: std::clone::Clone
+{
     /**
      * Constructor for the SDRClassifier
      * 
@@ -69,7 +71,11 @@ impl<T> SDRClassifier<T> where T: std::clone::Clone {
      * 		  actValueAlpha results in longer term memory.
      * @param verbosity Verbosity level, can be 0, 1, or 2.
      */
-	pub fn new(steps: Vec<u8>, alpha: f32, act_value_alpha: f32, column_size: usize) -> SDRClassifier<T> {
+    pub fn new(steps: Vec<u8>,
+               alpha: f32,
+               act_value_alpha: f32,
+               column_size: usize)
+               -> SDRClassifier<T> {
         let max = *steps.iter().max().unwrap() as usize + 1;
         let len = steps.len();
         SDRClassifier {
@@ -82,9 +88,9 @@ impl<T> SDRClassifier<T> where T: std::clone::Clone {
             max_bucket_idx: 0,
             max_input_idx: column_size - 1,
             learn_iteration: 0,
-            weight_matrix: vec![vec![vec![0f32; column_size]; 1]; len]
+            weight_matrix: vec![vec![vec![0f32; column_size]; 1]; len],
         }
-	}
+    }
 
     /**
 	 * Process one input sample.
@@ -154,56 +160,64 @@ impl<T> SDRClassifier<T> where T: std::clone::Clone {
 	 * }</pre>
 	 *
 	 */
-    pub fn compute(&mut self, record_num: u32, bucket_idx: usize, act_value: T, pattern: &[usize], learn: bool, infer: bool) -> Vec<(u8, Vec<f32>)> {
-       // Classification<T> retVal = null;
+    pub fn compute(&mut self,
+                   record_num: u32,
+                   bucket_idx: usize,
+                   act_value: T,
+                   pattern: &[usize],
+                   learn: bool,
+                   infer: bool)
+                   -> Vec<(u8, Vec<f32>)> {
+        // Classification<T> retVal = null;
         //List<T> actualValues = (List<T>)this.actualValues;
 
-		//Save the offset between recordNum and learnIteration if this is the first compute
-		if self.record_num_minus_learn_iteration == -1 {
-			self.record_num_minus_learn_iteration = record_num as i32 - self.learn_iteration as i32;
+        //Save the offset between recordNum and learnIteration if this is the first compute
+        if self.record_num_minus_learn_iteration == -1 {
+            self.record_num_minus_learn_iteration = record_num as i32 - self.learn_iteration as i32;
         }
 
-		//Update the learn iteration
-		self.learn_iteration = (record_num as i32 - self.record_num_minus_learn_iteration) as u32;
+        //Update the learn iteration
+        self.learn_iteration = (record_num as i32 - self.record_num_minus_learn_iteration) as u32;
 
-		//Store pattern in our history
+        //Store pattern in our history
         if self.pattern_history.len() == self.pattern_history.capacity() {
             self.pattern_history.pop_back();
         }
-		self.pattern_history.push_front((self.learn_iteration, pattern.to_vec()));
+        self.pattern_history
+            .push_front((self.learn_iteration, pattern.to_vec()));
 
-		
-		//------------------------------------------------------------------------
-		//Inference:
-		//For each active bit in the activationPattern, get the classification votes
-        let ret = if infer  {
-			self.infer(pattern)
-		} else {
+
+        //------------------------------------------------------------------------
+        //Inference:
+        //For each active bit in the activationPattern, get the classification votes
+        let ret = if infer {
+            self.infer(pattern)
+        } else {
             vec![(0, vec![0.0])]
         };
 
-		//------------------------------------------------------------------------
-		//Learning:
-		if learn {
-			// Update maxBucketIndex and augment weight matrix with zero padding
-			if bucket_idx > self.max_bucket_idx  {
-				for &steps in &self.steps {
-					for i in self.max_bucket_idx..bucket_idx {
+        //------------------------------------------------------------------------
+        //Learning:
+        if learn {
+            // Update maxBucketIndex and augment weight matrix with zero padding
+            if bucket_idx > self.max_bucket_idx {
+                for &steps in &self.steps {
+                    for i in self.max_bucket_idx..bucket_idx {
                         self.weight_matrix[steps as usize].push(vec![0.0; self.max_input_idx + 1]);
-					}
-				}
-				self.max_bucket_idx = bucket_idx;
-			}
+                    }
+                }
+                self.max_bucket_idx = bucket_idx;
+            }
 
 
-			// Update rolling average of actual values if it's a scalar. If it's not, it
-			// must be a category, in which case each bucket only ever sees on category so
-			// we don't need a running average.
-			while self.max_bucket_idx > self.actual_values.len() - 1 {
-				self.actual_values.push(None);
-			}
+            // Update rolling average of actual values if it's a scalar. If it's not, it
+            // must be a category, in which case each bucket only ever sees on category so
+            // we don't need a running average.
+            while self.max_bucket_idx > self.actual_values.len() - 1 {
+                self.actual_values.push(None);
+            }
 
-        
+
             if self.actual_values[bucket_idx].is_none() {
                 self.actual_values[bucket_idx] = Some(act_value);
             } else {
@@ -216,10 +230,10 @@ impl<T> SDRClassifier<T> where T: std::clone::Clone {
                 */
                 self.actual_values[bucket_idx] = Some(act_value);
             }
-            
+
             let mut error = vec![0f32; self.max_bucket_idx + 1];
 
-            for &(ref iter,ref pattern) in &self.pattern_history {
+            for &(ref iter, ref pattern) in &self.pattern_history {
                 let nSteps = (self.learn_iteration - iter) as usize;
                 let nstps = nSteps as u8;
                 if self.steps.contains(&nstps) {
@@ -234,49 +248,51 @@ impl<T> SDRClassifier<T> where T: std::clone::Clone {
                         }
                     }
                 }
-			}
-		}   
-        
+            }
+        }
 
-		ret
+
+        ret
     }
 
     pub fn infer(&self, pattern: &[usize]) -> Vec<(u8, Vec<f32>)> {
-        self.steps.iter().map(|&step| {
-            let mut error = vec![0f32; self.max_bucket_idx + 1];
-            self.infer_single_step(pattern, step as usize, &mut error[..]);
-			(step, error)
-        }).collect()
-	}
+        self.steps
+            .iter()
+            .map(|&step| {
+                     let mut error = vec![0f32; self.max_bucket_idx + 1];
+                     self.infer_single_step(pattern, step as usize, &mut error[..]);
+                     (step, error)
+                 })
+            .collect()
+    }
 
     pub fn infer_single_step(&self, pattern: &[usize], step: usize, into: &mut [f32]) {
-		// Compute the output activation "level" for each bucket (matrix row)
-		// we've seen so far and store in double[]
+        // Compute the output activation "level" for each bucket (matrix row)
+        // we've seen so far and store in double[]
 
         let matrix = &self.weight_matrix[step];
 
-        for (index,val) in into.iter_mut().enumerate() {
+        for (index, val) in into.iter_mut().enumerate() {
             *val = 0.0;
             for &pattern_value in pattern {
                 *val += matrix[index][pattern_value];
             }
-        }
-
-        let mut sum = 0.0;
-        for val in into.iter_mut() {
             if *val < 0.001 {
                 *val = 0.0;
             } else {
                 *val *= *val;
             }
+        }
+
+        let mut sum = 0.0;
+        for val in into.iter_mut() {
             sum += *val;
         }
 
         if sum > 0.001 {
-            for val in into.iter_mut() { 
+            for val in into.iter_mut() {
                 *val /= sum;
             }
         }
-	}
-    
+    }
 }
