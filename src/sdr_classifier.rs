@@ -1,5 +1,6 @@
 use std::collections::VecDeque;
 use std;
+use numext::ClipExt;
 
 pub struct SDRClassifier<T> where T: std::clone::Clone {
     
@@ -218,23 +219,21 @@ impl<T> SDRClassifier<T> where T: std::clone::Clone {
             
             let mut error = vec![0f32; self.max_bucket_idx + 1];
 
-			for &(ref iter,ref pattern) in &self.pattern_history {
-                for &(ref iter,ref pattern) in &self.pattern_history {
-                    let nSteps = (self.learn_iteration - iter) as usize;
-                    let nstps = nSteps as u8;
-                    if self.steps.contains(&nstps) {
-                        self.infer_single_step(&pattern, nSteps, &mut error);
-                        for (index, val) in error.iter_mut().enumerate() {
-                            *val = ((index == bucket_idx) as usize) as f32 - *val;
-                        }
-                        for (index, matrix) in self.weight_matrix[nSteps].iter_mut().enumerate() {
-						    for &bit in pattern {
-                                matrix[bit] += self.alpha * error[index];
-                            }
+            for &(ref iter,ref pattern) in &self.pattern_history {
+                let nSteps = (self.learn_iteration - iter) as usize;
+                let nstps = nSteps as u8;
+                if self.steps.contains(&nstps) {
+                    self.infer_single_step(&pattern, nSteps, &mut error);
+                    for (index, val) in error.iter_mut().enumerate() {
+                        *val = ((index == bucket_idx) as usize) as f32 - *val;
+                    }
+                    for (index, matrix) in self.weight_matrix[nSteps].iter_mut().enumerate() {
+                        for &bit in pattern {
+                            matrix[bit] += self.alpha * error[index];
+                            //matrix[bit].clip(-1.0, 1.0); not sure if needed
                         }
                     }
                 }
-                
 			}
 		}   
         
@@ -259,18 +258,24 @@ impl<T> SDRClassifier<T> where T: std::clone::Clone {
         for (index,val) in into.iter_mut().enumerate() {
             *val = 0.0;
             for &pattern_value in pattern {
-                    *val += matrix[index][pattern_value];
+                *val += matrix[index][pattern_value];
             }
         }
 
         let mut sum = 0.0;
         for val in into.iter_mut() {
-            *val = std::f32::consts::E.powf(*val);
+            if *val < 0.001 {
+                *val = 0.0;
+            } else {
+                *val *= *val;
+            }
             sum += *val;
         }
 
-        for val in into.iter_mut() { 
-            *val /= sum;
+        if sum > 0.001 {
+            for val in into.iter_mut() { 
+                *val /= sum;
+            }
         }
 	}
     
