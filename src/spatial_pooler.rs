@@ -188,7 +188,7 @@ impl SpatialPooler {
         }
     }
 
-    pub fn compute<T: IntoIterator<Item=bool>>(&mut self, input_vector: &[bool], active_array: &mut T, learn: bool)   {
+    pub fn compute(&mut self, input_vector: &[bool], learn: bool)   {
         self.update_iteration_number(learn);
         self.calculate_overlaps(input_vector);
         self.boost(learn);
