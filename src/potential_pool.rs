@@ -56,26 +56,19 @@ impl PotentialPool {
     }
 
     pub fn sort_input_synapses(&mut self, index: usize, connected: f32) {
-         let range = self.connections_by_index_range(index);
-         if (range.end - range.start <= 0) {
-             return;
-         }
-         let arr = &mut self.synapses_columns;
- 
-         {
-             //Faster sort with pivot connected O(n) 
-             //Maybe a sort with pivot and then index is slighty better for cache
-            let mut pivot = range.start;
-             for i in range.clone() {
-                 if arr[i].permanence >= connected {
-                     if (pivot != i) {
-                         arr.swap(i, pivot);
-                     }
-                     pivot += 1;
-                 }
-             }
-             self.sizes_columns[index].1 = pivot - range.start;
-         }
+        let range = self.connections_by_index_range(index);
+        let arr = &mut self.synapses_columns;
+
+        let mut pivot = range.start;
+        for i in range.clone() {
+            if arr[i].permanence >= connected {
+                if (pivot != i) {
+                    arr.swap(i, pivot);
+                }
+                pivot += 1;
+            }
+        }
+        self.sizes_columns[index].1 = pivot - range.start;
       }
 
     pub fn update_permanences_for_column(&mut self, column_index: usize, raise_prem: bool, stimulus_threshold: i32, options: &SynapsePermenenceOptions)
@@ -98,7 +91,7 @@ impl PotentialPool {
     pub fn raise_permanence_to_threshold(&mut self, column_index: usize, stimulus_threshold: i32, options: &SynapsePermenenceOptions) {
         let perms = self.connections_by_index_mut(column_index);
         loop {
-            let num_connected = perms.iter().fold(0, |acc, val| acc + (val.permanence > options.connected) as i32);
+            let num_connected = perms.iter().fold(0, |acc, val| acc + (val.permanence >= options.connected) as i32);
             if num_connected >= stimulus_threshold {
                 break;
             }
