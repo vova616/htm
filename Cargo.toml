@@ -10,6 +10,7 @@ rand = "0.3"
 quickersort = "2.1.0"
 rayon = "0.7.0"
 time = "*"
+byteorder = "1"
 
 [profile.release]
 debug = true
