@@ -1,139 +1,14 @@
-#![feature(conservative_impl_trait)]
-#![allow(dead_code)]
-
-mod spatial_pooler;
-mod column;
-mod topology;
-mod numext;
-mod potential_pool;
-mod universal_rand;
-mod sdr_classifier;
-
-extern crate bit_vec;
-extern crate rand;
-extern crate collect_slice;
-extern crate quickersort;
-extern crate rayon;
-extern crate time;
-//extern crate image;
-
-use rand::*;
-use spatial_pooler::SpatialPooler;
-use universal_rand::*;
-use time::PreciseTime;
-
+extern crate htm;
+extern crate byteorder;
 
 use std::fs::File;
 use std::io::prelude::*;
 use std::path::Path;
 use std::io::BufReader;
-extern crate byteorder;
-use byteorder::{ReadBytesExt, WriteBytesExt, BigEndian, LittleEndian};
-//use image::{ImageBuffer, Luma};
-use sdr_classifier::SDRClassifier;
-
-fn main4() {
-    let mut sp = SpatialPooler::new(vec![32, 32], vec![64, 64]);
-    sp.potential_radius = sp.num_inputs as i32;
-    sp.global_inhibition = true;
-    sp.num_active_columns_per_inh_area = 0.02 * sp.num_columns as f64;
-    sp.syn_perm_options.active_inc = 0.01;
-    sp.syn_perm_options.trim_threshold = 0.005;
-    sp.compability_mode = true;
-
-    {
-        print!("Initializing");
-        let start = PreciseTime::now();
-        sp.init();
-        println!(": {:?}", start.to(PreciseTime::now()));
-    }
-
-    let mut rnd = UniversalRng::from_seed([42, 0, 0, 0]);
-    let mut input = vec![false; sp.num_inputs];
-
-    let mut record = 0;
-    for i in 0..10 {
-        for val in &mut input {
-            *val = rnd.next_uv_int(2) == 1;
-        }
-
-        sp.compute(&input, true);
-        //println!(": {:?}", start.to(PreciseTime::now()).num_microseconds().unwrap() as f64 / 1000.0);
-        //println!("{:?}", sp.overlaps);
-        sp.winner_columns.sort();
-        println!("{:?}", sp.winner_columns);
-    }
-
-}
-
-fn main3() {
-    let mut sp = SpatialPooler::new(vec![10], vec![100]);
-    sp.potential_radius = 3;
-    sp.global_inhibition = true;
-    sp.num_active_columns_per_inh_area = 0.02 * sp.num_columns as f64;
-    sp.syn_perm_options.active_inc = 0.01;
-    sp.syn_perm_options.trim_threshold = 0.005;
-    sp.compability_mode = true;
-
-    let mut classifier: SDRClassifier<u8> =
-        SDRClassifier::new(vec![0, 1], 0.1, 0.3, sp.num_columns);
-
-    {
-        print!("Initializing");
-        let start = PreciseTime::now();
-        sp.init();
-        println!(": {:?}", start.to(PreciseTime::now()));
-    }
-
-    let mut rnd = UniversalRng::from_seed([42, 0, 0, 0]);
-    let mut input = vec![false; sp.num_inputs];
-
-    let mut record = 0;
-    for i in 0..100 {
-        // for val in &mut input {
-        //     *val = rnd.next_uv_int(2) == 1;
-        // }
-
-        for val in 0..10 {
-            //print!("Computing");
-            // let start = PreciseTime::now();
-
-            for val in &mut input {
-                *val = false;
-            }
-            input[val] = true;
-
-            sp.compute(&input, true);
-            //println!(": {:?}", start.to(PreciseTime::now()).num_microseconds().unwrap() as f64 / 1000.0);
-            //println!("{:?}", sp.overlaps);
-            sp.winner_columns.sort();
-            //println!("{:?}", sp.winner_columns);
-
-            let r = classifier.compute(record, val, val as u8, &sp.winner_columns[..], true, true);
-            if i == 99 {
-                println!("value: {}", val);
-                for &(ref step, ref probabilities) in &r {
-                    println!("{} {:?}",
-                             step,
-                             probabilities
-                                 .iter()
-                                 .enumerate()
-                                 .max_by(|&(_, a), &(_, b)| a.partial_cmp(b).unwrap())
-                                 .unwrap());
-                }
-            }
-
-
-            record += 1;
-        }
-
-    }
-
-}
+use byteorder::{ReadBytesExt, BigEndian};
+use htm::{SDRClassifier,SpatialPooler};
 
 fn main() {
-
-
     let mut images = ImageIter::new("../train-images.idx3-ubyte");
     let mut labels = LabelIter::new("../train-labels.idx1-ubyte");
 
@@ -141,16 +16,16 @@ fn main() {
     let mut test_labels = LabelIter::new("../t10k-labels.idx1-ubyte");
 
 
-    let mut sp = SpatialPooler::new(vec![28 * 28], vec![40 * 40]);
-    sp.potential_radius = 4;
+    let mut sp = SpatialPooler::new(vec![28*28], vec![64,64]);
+    sp.potential_radius = 28*3;
     sp.global_inhibition = true;
-    sp.num_active_columns_per_inh_area = 0.3 * sp.num_columns as f64;
-    sp.syn_perm_options.active_inc = 0.02; //0.01
-    sp.syn_perm_options.inactive_dec = 0.008; //0.008
+    sp.num_active_columns_per_inh_area = 0.2 * sp.num_columns as f64;
+    sp.syn_perm_options.active_inc = 0.00; //0.01
+    sp.syn_perm_options.inactive_dec = 0.000; //0.008
     sp.syn_perm_options.trim_threshold = 0.005;
-    sp.stimulus_threshold = 2.0;
-    //sp.syn_perm_options.connected = 0.2;
-    //sp.potential_pct = 0.6;
+    sp.stimulus_threshold = 1.0;
+    sp.syn_perm_options.connected = 0.2;
+    sp.potential_pct = 20.0 / sp.potential_radius as f64;
     sp.compability_mode = true;
     sp.init();
 
@@ -158,7 +33,7 @@ fn main() {
 
     let mut input = vec![false; sp.num_inputs];
 
-    //println!("Training on:{}", images.size);
+    println!("Training on:{}", images.size);
 
     let mut record = 0;
     for _ in 0..images.size {
@@ -178,14 +53,14 @@ fn main() {
                                    &sp.winner_columns[..],
                                    true,
                                    true);
-        record += 1;
+        record += 1;    
     }
 
-    //println!("Testing on: {}", test_images.size);
+    println!("Testing on: {}", test_images.size);
 
-    let mut good = 0;
-    let mut total = test_images.size;
-    for i in 0..test_images.size {
+    let mut good = 0;   
+    let total = test_images.size;
+    for _ in 0..test_images.size {
 
         let image = test_images.next().unwrap();
         let label = test_labels.next().unwrap();

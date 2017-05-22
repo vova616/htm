@@ -9,9 +9,11 @@ bit-vec = "0.4.3"
 rand = "0.3"
 quickersort = "2.1.0"
 rayon = "0.7.0"
-time = "*"
+
+[dev-dependencies]
 byteorder = "1"
+time = "*"
+
 
 [profile.release]
 debug = true
-

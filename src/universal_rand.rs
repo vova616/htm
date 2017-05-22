@@ -9,7 +9,8 @@
 /// RNGs"](http://www.jstatsoft.org/v08/i14/paper). *Journal of
 /// Statistical Software*. Vol. 8 (Issue 14).
 ///use std::num::Wrapping as w;
-use rand::*;
+
+use rand::{Rand,SeedableRng,Rng};
 
 #[allow(missing_copy_implementations)]
 #[derive(Clone, Debug)]
@@ -26,6 +27,20 @@ impl UniversalRng {
     /// this function
     pub fn new_unseeded() -> UniversalRng {
         UniversalRng { seed: 0x193a6754 }
+    }
+
+    pub fn from_seed(seed: [u32; 4]) -> UniversalRng {
+        assert!(!seed.iter().all(|&x| x == 0),
+                "UniversalRng::from_seed called with an all zero seed.");
+
+        UniversalRng { seed: seed[0] as u64 + seed[1] as u64 + seed[2] as u64 + seed[3] as u64 }
+    }
+
+    pub fn reseed(&mut self, seed: [u32; 4]) {
+        assert!(!seed.iter().all(|&x| x == 0),
+                "UniversalRng.reseed called with an all zero seed.");
+
+        self.seed = seed[0] as u64 + seed[1] as u64 + seed[2] as u64 + seed[3] as u64;
     }
 }
 
@@ -78,18 +93,12 @@ impl Rng for UniversalRng {
 impl SeedableRng<[u32; 4]> for UniversalRng {
     /// Reseed an UniversalRng. This will panic if `seed` is entirely 0.
     fn reseed(&mut self, seed: [u32; 4]) {
-        assert!(!seed.iter().all(|&x| x == 0),
-                "UniversalRng.reseed called with an all zero seed.");
-
-        self.seed = seed[0] as u64 + seed[1] as u64 + seed[2] as u64 + seed[3] as u64;
+        self.reseed(seed);
     }
 
     /// Create a new UniversalRng. This will panic if `seed` is entirely 0.
     fn from_seed(seed: [u32; 4]) -> UniversalRng {
-        assert!(!seed.iter().all(|&x| x == 0),
-                "UniversalRng::from_seed called with an all zero seed.");
-
-        UniversalRng { seed: seed[0] as u64 + seed[1] as u64 + seed[2] as u64 + seed[3] as u64 }
+        UniversalRng::from_seed(seed)
     }
 }
 
