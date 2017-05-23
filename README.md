@@ -6,7 +6,7 @@ Currently compatible with Java/(probably Python/C++ too) by using the same algo 
 
 Performance are similar to C++.
 
-Examples in examples folder, MNIST example got a score of 90% accuracy.
+Examples in examples folder, MNIST example got a score of 95% accuracy.
 
 ### WIP
 
