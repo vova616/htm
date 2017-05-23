@@ -16,16 +16,17 @@ fn main() {
     let mut test_labels = LabelIter::new("../t10k-labels.idx1-ubyte");
 
 
-    let mut sp = SpatialPooler::new(vec![28*28], vec![64,64]);
-    sp.potential_radius = 28*3;
+    let mut sp = SpatialPooler::new(vec![28*28], vec![64*64*2]);
+    sp.potential_radius = sp.num_inputs as i32;
     sp.global_inhibition = true;
-    sp.num_active_columns_per_inh_area = 0.2 * sp.num_columns as f64;
-    sp.syn_perm_options.active_inc = 0.00; //0.01
-    sp.syn_perm_options.inactive_dec = 0.000; //0.008
+    sp.num_active_columns_per_inh_area = 0.05 * sp.num_columns as f64;
+    sp.syn_perm_options.active_inc = 0.001; //0.01
+    sp.syn_perm_options.inactive_dec = 0.008; //0.008
     sp.syn_perm_options.trim_threshold = 0.005;
-    sp.stimulus_threshold = 1.0;
+    sp.stimulus_threshold = 3.0;
     sp.syn_perm_options.connected = 0.2;
-    sp.potential_pct = 20.0 / sp.potential_radius as f64;
+    sp.syn_perm_options.max = 0.3;
+    sp.potential_pct = 15.0 / sp.potential_radius as f64;
     sp.compability_mode = true;
     sp.init();
 
