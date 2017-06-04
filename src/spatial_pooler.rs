@@ -48,13 +48,8 @@ pub struct SpatialPooler {
 
     /** Total number of columns */
     pub column_dimensions: Vec<usize>,
-    /** Total number of cells per column */
-    pub cells_per_column: usize,
     /** What will comprise the Layer input. Input (i.e. from encoder) */
     pub input_dimensions: Vec<usize>,
-
-    //Aka memory
-    pub columns: Vec<Column>,
 
     pub column_topology: Topology,
     pub input_topology: Topology,
@@ -132,10 +127,8 @@ impl SpatialPooler {
             stimulus_threshold: 0.0,
 
             column_dimensions: column_dimensions,
-            cells_per_column: 64,
             input_dimensions: input_dimensions,
 
-            columns: Vec::with_capacity(column_size),
             column_topology: column_topology,
             input_topology: input_topology,
 
@@ -157,13 +150,6 @@ impl SpatialPooler {
         c
     }
 
-    pub fn get_column_mut(&mut self, index: usize) -> &mut Column {
-        &mut self.columns[index]
-    }
-
-    pub fn get_column(&self, index: usize) -> &Column {
-        &self.columns[index]
-    }
 
     pub fn post_init(&mut self) {
         self.syn_perm_options.below_stimulus_inc = self.syn_perm_options.connected / 10.0;
@@ -179,7 +165,6 @@ impl SpatialPooler {
             Some(SPError::InvalidInhibitionParameters)
         } else {
             self.post_init();
-            self.gen_columns();
             self.gen_column_potential();
             self.connect_and_configure_inputs();
             None
@@ -539,8 +524,8 @@ impl SpatialPooler {
             let max_dim = *self.input_dimensions.iter().max().unwrap() as isize;
 
             let mut total: f64 = 0.0;
-            for column in &self.columns {
-                let cs = self.column_potential.connections_by_index(column.index);
+            for column in 0..self.num_columns {
+                let cs = self.column_potential.connections_by_index(column);
                 for val in &mut max {
                     *val = -1;
                 }
@@ -564,7 +549,7 @@ impl SpatialPooler {
                     .fold(0, |acc, (x, y)| acc + y - x + 1) as f64 /
                          size as f64;
             }
-            total /= self.columns.len() as f64;
+            total /= self.num_columns as f64;
 
             let avg: f64 = self.column_dimensions
                 .iter()
@@ -614,14 +599,6 @@ impl SpatialPooler {
                                              }))
     }
 
-    pub fn gen_columns(&mut self) {
-        //Fill the sparse matrix with column objects
-        let mut i = 0;
-        while i < self.num_columns {
-            self.columns.push(Column::new(self.cells_per_column, i));
-            i += 1;
-        }
-    }
 
     pub fn sample_into<T, I, R>(rng: &mut R,
                                 iterable: I,
