@@ -62,7 +62,6 @@ pub struct SpatialPooler {
 
     pub overlaps: Vec<f32>,
     pub winner_columns: Vec<usize>,
-    pub update_inputs: HashSet<usize>,
     pub tie_broken_overlaps: Vec<f32>,
     //pub kdtree: KdTree<usize>,
     pub compability_mode: bool,
@@ -144,7 +143,6 @@ impl SpatialPooler {
             overlaps: vec![0.0; column_size],
             winner_columns: vec![0; column_size],
             tie_broken_overlaps: vec![0.0; column_size],
-            update_inputs: HashSet::with_capacity(column_size),
             compability_mode: false,
         };
         c
@@ -187,10 +185,6 @@ impl SpatialPooler {
                 self.update_min_duty_cycles();
             }
         }
-
-        //  println!("{}", self.update_inputs.len());
-        //  println!("{:?}", self.winner_columns);
-        //  println!("{:?}", self.overlaps);
     }
 
     pub fn adapt_groups(&mut self) {
@@ -198,7 +192,6 @@ impl SpatialPooler {
     }
 
     pub fn adapt_synapses(&mut self, input_vector: &[bool]) {
-        self.update_inputs.clear();
         for column in &self.winner_columns {
             for val in self.column_potential
                     .connections_by_index_mut(*column)
