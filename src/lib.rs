@@ -4,7 +4,7 @@
 pub use self::spatial_pooler::SpatialPooler;
 pub use self::sdr_classifier::SDRClassifier;
 pub use self::universal_rand::{UniversalRng,UniversalNext};
-
+pub use self::temporal_memory::TemporalMemory;
 
 
 mod spatial_pooler;
@@ -16,8 +16,9 @@ mod numext;
 mod potential_pool;
 mod potential_group;
 mod dynamic_container;
-
-
+mod temporal_memory;
+mod peekable_while;
+mod bucket_container;
 
 extern crate bit_vec;
 extern crate rand;
