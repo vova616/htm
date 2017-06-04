@@ -9,6 +9,7 @@ bit-vec = "0.4.3"
 rand = "0.3"
 quickersort = "2.1.0"
 rayon = "0.7.0"
+fnv = "1.0.5"
 
 [dev-dependencies]
 byteorder = "1"

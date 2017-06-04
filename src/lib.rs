@@ -24,4 +24,5 @@ extern crate rand;
 extern crate collect_slice;
 extern crate quickersort;
 extern crate rayon;
+extern crate fnv;
 
