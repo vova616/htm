@@ -13,4 +13,4 @@ Examples in examples folder, MNIST example got a score of 95% accuracy.
 - [x] SpatialPooler
 - [x] SDRClassifier
 - [ ] Encoders
-- [ ] TemporalMemory
+- [x] TemporalMemory
