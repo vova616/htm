@@ -285,16 +285,14 @@ impl Segment {
                          map.get_mut(&synapse.cell).unwrap().replace(SynapseLink{segment: *seg_ref, connected: true});
                     }
                 } else if synapse.permanence < connected {
-                    if (synapse.permanence < 0.00001) {
-                        map.get_mut(&synapse.cell).unwrap().remove(&SynapseLink{segment: *seg_ref, connected: false});
-                        deleted = true;
-                    } else {
-                        map.get_mut(&synapse.cell).unwrap().replace(SynapseLink{segment: *seg_ref, connected: false});
-                    }
+                    map.get_mut(&synapse.cell).unwrap().replace(SynapseLink{segment: *seg_ref, connected: false});
                 }
 
                 if synapse.permanence > 1.0 {
                     synapse.permanence = 1.0;
+                } else if (synapse.permanence < 0.00001) {
+                    map.get_mut(&synapse.cell).unwrap().remove(&SynapseLink{segment: *seg_ref, connected: false});
+                    deleted = true;
                 }
             }
 
