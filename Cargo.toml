@@ -10,11 +10,12 @@ rand = "0.3"
 quickersort = "2.1.0"
 rayon = "0.7.0"
 fnv = "1.0.5"
+log = "0.3.7"
 
 [dev-dependencies]
 byteorder = "1"
 time = "*"
-
+env_logger = "*"
 
 [profile.release]
 debug = true

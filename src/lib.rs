@@ -16,3 +16,5 @@ extern crate quickersort;
 extern crate rayon;
 extern crate fnv;
 
+#[macro_use]
+extern crate log;

@@ -71,7 +71,7 @@ pub struct TemporalMemory {
     pub rand: UniversalRng,
 }
 
-#[derive(Debug,Copy,Clone,PartialEq,Eq,Hash)]
+#[derive(Copy,Clone,PartialEq,Eq,Hash)]
 pub struct Cell {
     pub column: u32,
     pub cell: u32,
@@ -89,6 +89,15 @@ impl Cell {
 
 use std::fmt;
 impl fmt::Display for Cell {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match f.precision() {
+            Some(n) => write!(f, "{}", self.index(n as u32)),
+            None =>  write!(f, "({}, {})", self.column, self.cell)
+        }
+    }
+}
+
+impl fmt::Debug for Cell {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match f.precision() {
             Some(n) => write!(f, "{}", self.index(n as u32)),
@@ -145,11 +154,20 @@ impl PartialOrd for SegmentRef {
     }
 }
 
-#[derive(Debug)]
 pub struct SegmentScore {
     pub segment: SegmentRef,
     pub matched: u32,
 }
+
+impl fmt::Debug for SegmentScore {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match f.precision() {
+            Some(n) => write!(f, "({}:{})", self.segment.cell.index(n as u32), self.matched),
+            None =>  write!(f, "({}:{})", self.segment.cell, self.matched)
+        }
+    }
+}
+
 
 impl Ord for SegmentScore {
     fn cmp(&self, other: &Self) -> Ordering {
@@ -213,11 +231,21 @@ impl PartialOrd for SynapseLink {
 }
 
 
-#[derive(Debug)]
+
 pub struct Synapse {
     pub cell: Cell,
     pub permanence: f32,
 }
+
+impl fmt::Debug for Synapse {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match f.precision() {
+            Some(n) => write!(f, "{}", self.cell.index(n as u32)),
+            None =>  write!(f, "({}, {})", self.cell, self.permanence)
+        }
+    }
+}
+
 
 impl Segment {
     pub fn new(column: u32, cell: u32) -> Segment {
@@ -410,6 +438,10 @@ impl TemporalMemory {
         
         quickersort::sort(&mut self.segments_active);
         quickersort::sort(&mut self.segments_matching);
+        debug!("active_cells {:?}", self.active_cells);
+        debug!("winner_cells {:?}", self.winner_cells);
+        debug!("active {:?}", self.segments_active);
+        debug!("matching {:?}", self.segments_matching);
     }
 
     pub fn active_cells(&mut self,active_columns: &[usize], learn: bool)
@@ -460,7 +492,7 @@ impl TemporalMemory {
                 None => false,
             };
 
-            //println!("loop {} {:?} {:?} {:?}", column_idx, curr_column, seg_active, seg_matching);
+            debug!("loop {} {:?} {:?} {:?}", column_idx, curr_column, seg_active, seg_matching);
 
             let mut active_segs = PeekableWhile::new(iter_active_segs.by_ref(), |x| x.segment.cell.column == column_idx);
             let mut matching_segs = PeekableWhile::new(iter_matching_segs.by_ref(), |x| x.segment.cell.column == column_idx);
@@ -472,7 +504,7 @@ impl TemporalMemory {
                         matching_segs.drain();
                     }
                     for active_seg in active_segs {
-                        //println!("Reward {:?}", active_seg.segment);
+                        debug!("Reward {:?}", active_seg.segment);
                         self.active_cells.insert(active_seg.segment.cell);
                         self.winner_cells.insert(active_seg.segment.cell);
                         if learn {
@@ -501,22 +533,22 @@ impl TemporalMemory {
                             }
                         }
                         let best_seg = best_seg_o.unwrap();
-                        //println!("Brust {:?}", best_seg.cell);
                         self.winner_cells.insert(best_seg.cell);
                         let seg = &mut self.segments.get_mut(&best_seg.cell).unwrap()[best_seg.segment as usize];
                         if learn {
-                             let active_potential = matching;    
+                             let active_potential = matching;   
+                             //might be better to use  &self.prev_winner_cells somehow without touching the not relevant ones
                              seg.adapt_segment(&self.prev_active_cells,  &mut self.synapse_map, &best_seg, self.permanence_increment, self.permanence_decrement, self.connected_permanence);
                              let n_grow_desired = self.max_new_synapse_count  as i32 - active_potential as i32;
                              if n_grow_desired > 0 {
                                 let (syns,range) = seg.grow_synapses(&self.prev_winner_cells, self.initial_permanence, n_grow_desired as u32, &mut self.rand);
                                 TemporalMemory::add_synapses(&mut self.synapse_map, syns, range, &best_seg, self.connected_permanence);
                              }
+                             debug!("Update Matching {:?}", seg);
                         }
                      } else {
                          let cell = TemporalMemory::least_used_cell(column_idx, &mut self.rand, &self.segments, self.cells);
                          self.winner_cells.insert(cell);
-                         //println!("New Segment {:?}", cell);
                          let n_grow_desired = cmp::min(self.max_new_synapse_count, self.prev_winner_cells.len() as u32);
                          if n_grow_desired > 0 {
                             let mut seg = Segment::new(cell.column, cell.cell);
@@ -526,6 +558,7 @@ impl TemporalMemory {
                                 let (syns, range) = seg.grow_synapses(&self.prev_winner_cells, self.initial_permanence, n_grow_desired, &mut self.rand);
                                 TemporalMemory::add_synapses(&mut self.synapse_map, syns, range, &seg_ref, self.connected_permanence);
                             }
+                            debug!("New Segment {:?}", seg);
                             vec.push(seg);
                          }
                      }      
@@ -538,9 +571,10 @@ impl TemporalMemory {
                 if self.predicted_segment_decrement > 0.0 {
                     for seg_ref in matching_segs {
                         let seg = &mut self.segments.get_mut(&seg_ref.segment.cell).unwrap()[seg_ref.segment.segment as usize];
-                        //println!("Punish {:?} {:?} {:?}", seg_ref.segment, seg, seg.synapses);
+                        
                         seg.adapt_segment(&self.prev_active_cells, &mut self.synapse_map, &seg_ref.segment, -self.predicted_segment_decrement, 0.0, self.connected_permanence);
-                        //println!("AfterPunish {:?}", seg.synapses);
+                        debug!("Punish {:?}",  seg);
+                        //debug!("AfterPunish {:?}", seg.synapses);
                     }
                 } else {
                     if matching_segment {
