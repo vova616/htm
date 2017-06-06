@@ -4,7 +4,7 @@ use std::ops::{Sub, Add, Mul, Div, Range};
 
 
 pub struct ScalarEncoder {
-    size: usize,
+    pub size: usize,
     internal_size: usize,
     width: usize,
     half_width: usize,
@@ -20,7 +20,6 @@ pub struct ScalarEncoder {
     max: f64,
     internal_range: f64,
     range: f64,
-    
 }   
 
 
@@ -157,7 +156,7 @@ impl ScalarEncoder {
         Self::encode_into_internal(input, &mut self.output, range, self.size as isize, self.wrap);
         &self.output    
     }
-    
+
     pub fn get_bucket_index(&self, input: f64) -> Option<usize> {
         match self.get_first_on_bit(input) {
             Some(minbin) => {
