@@ -1,6 +1,7 @@
 use util::numext::*;
 use std::cmp::PartialOrd;
-use std::ops::{Sub, Add, Mul, Div};
+use std::ops::{Sub, Add, Mul, Div, Range};
+
 
 pub struct ScalarEncoder {
     size: usize,
@@ -69,8 +70,6 @@ impl ScalarEncoder {
         encoder.init();
 
         encoder.internal_size = encoder.size - 2 * encoder.padding;
-        encoder.output = vec![false; encoder.size];
-
 
         encoder
     }
@@ -109,44 +108,56 @@ impl ScalarEncoder {
         }
     }
 
-    pub fn encode(&mut self, input: f64) -> &[bool] {
-        if input.is_nan_generic() {
-            for v in self.output.iter_mut() {
-                *v = false;
-            }
-            return &self.output;
-        }   
-        
+    fn get_encode_range(&self, input: f64) -> Range<isize> {
         let bucket = self.get_first_on_bit(input).unwrap();
-        for v in &mut self.output {
-            *v = false;
-        }
-       
         let mut minbin = bucket;
         let mut maxbin = bucket + 2 * self.half_width as isize;
-        let size = self.size as isize;
-        if self.wrap {
-            if maxbin >= size {
-                for v in &mut self.output[0..(maxbin - size + 1) as usize] {
-                    *v = true;
-                }
-                maxbin = size - 1;
-            }
-            if minbin < 0  {
-                for v in &mut self.output[(size + minbin) as usize..size as usize] {
-                    *v = true;
-                }
-                minbin = 0;
-            }
-        }
-
-        for v in &mut self.output[minbin as usize..(maxbin + 1) as usize] {
-            *v = true;
-        }
-
-        &self.output
+        minbin..maxbin
     }
 
+    fn encode_into_internal(input: f64, output: &mut [bool], mut range: Range<isize>, size: isize, wrap: bool) {
+        for v in &mut output[..] {
+            *v = false;
+        }
+
+        if input.is_nan_generic() {
+            return;
+        }   
+        
+        if wrap {
+            if range.end >= size {
+                for v in &mut output[0..(range.end - size + 1) as usize] {
+                    *v = true;
+                }
+                range.end = size - 1;
+            }
+            if range.start < 0  {
+                for v in &mut output[(size + range.start) as usize..size as usize] {
+                    *v = true;
+                }
+                range.start = 0;
+            }
+        }
+
+        for v in &mut output[range.start as usize..(range.end + 1) as usize] {
+            *v = true;
+        }
+    }
+
+    pub fn encode_into(&self, input: f64, output: &mut [bool]) {
+       let mut range = self.get_encode_range(input);
+       Self::encode_into_internal(input, output, range, self.size as isize, self.wrap);
+    }
+
+    pub fn encode(&mut self, input: f64) -> &[bool] {
+        if self.output.len() <= 0 {
+            self.output = vec![false; self.size];
+        }
+        let mut range = self.get_encode_range(input);
+        Self::encode_into_internal(input, &mut self.output, range, self.size as isize, self.wrap);
+        &self.output    
+    }
+    
     pub fn get_bucket_index(&self, input: f64) -> Option<usize> {
         match self.get_first_on_bit(input) {
             Some(minbin) => {
@@ -194,7 +205,7 @@ impl ScalarEncoder {
                  panic!("input ({input} greater than range ({self.min} - {self.max})");
             }
         }*/
-        
+
         if !self.wrap {
             input = input.clip(self.min,self.max);
         } else {
