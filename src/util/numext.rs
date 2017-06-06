@@ -11,7 +11,7 @@ macro_rules! modulo_signed_ext_impl {
         }
     )*)
 }
-modulo_signed_ext_impl! { i8 i16 i32 i64 usize isize}
+modulo_signed_ext_impl! { i8 i16 i32 i64 usize isize f32 f64}
 
 
 pub trait ClipExt {
@@ -34,3 +34,30 @@ macro_rules! clip_ext_impl {
     )*)
 }
 clip_ext_impl! { i8 i16 i32 i64 usize isize f32 f64}
+
+pub trait NaNExt {
+    fn is_nan_generic(self) -> bool;
+}
+macro_rules! nan_ext_impl {
+    ($($t:ty)*) => ($(
+        impl NaNExt for $t {
+            #[inline]
+            fn is_nan_generic(self) -> bool {
+                self.is_nan()
+            }
+        }
+    )*)
+}
+nan_ext_impl! {f32 f64}
+
+macro_rules! nan_empty_ext_impl {
+    ($($t:ty)*) => ($(
+        impl NaNExt for $t {
+            #[inline]
+             fn is_nan_generic(self) -> bool {
+                return false
+            }
+        }
+    )*)
+}
+nan_empty_ext_impl! { i8 u8 i16 u16 i32 u32 i64 u64 usize isize }
