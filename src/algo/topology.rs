@@ -1,5 +1,5 @@
 use std::cmp;
-use numext::ModuloSignedExt;
+use util::ModuloSignedExt;
 use collect_slice::CollectSlice;
 use std;
 

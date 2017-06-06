@@ -1,12 +1,10 @@
-
+use std;
 use std::collections::HashSet;
 use std::cmp;
-use std;
-use peekable_while::PeekableWhile;
-use numext::*;
 use fnv::{FnvHashMap,FnvHashSet};
 use rand::{Rng, XorShiftRng, SeedableRng};
-use universal_rand::*;
+use util::{UniversalRng, UniversalNext, PeekableWhile};
+use util::numext::*;
 use quickersort;
 
 pub struct TemporalMemory {

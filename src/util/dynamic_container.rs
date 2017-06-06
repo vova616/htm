@@ -2,7 +2,7 @@
 use std::default::Default;
 use std::clone::Clone;
 use std;
-use numext::ClipExt;
+use util::ClipExt;
 
 #[derive(Debug)]
 pub struct DynamicContainer<T> {

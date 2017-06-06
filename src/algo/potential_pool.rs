@@ -1,12 +1,9 @@
-use column::Column;
 use std;
-use bit_vec::BitVec;
-use spatial_pooler::{SpatialPooler, SynapsePermenenceOptions};
+use algo::{SpatialPooler, SynapsePermenenceOptions};
 use rand::Rng;
-use numext::ClipExt;
-use universal_rand::*;
+use util::{ClipExt,DynamicContainer};
+use util::universal_rand::*;
 use quickersort;
-use dynamic_container::DynamicContainer;
 
 #[derive(Debug)]
 pub struct PotentialPool {

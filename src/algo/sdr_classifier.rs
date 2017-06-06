@@ -1,6 +1,6 @@
 use std::collections::VecDeque;
 use std;
-use numext::ClipExt;
+use util::numext::*;
 
 pub struct SDRClassifier<T>
     where T: std::clone::Clone

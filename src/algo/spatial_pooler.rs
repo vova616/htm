@@ -3,14 +3,12 @@
 use std;
 use std::ops::{Index, Range};
 use std::option::Option;
-use column::Column;
 use std::cmp;
-use potential_pool::{PotentialPool, Synapse};
+use algo::{PotentialPool, Topology};
 use rand::{Rng, XorShiftRng, SeedableRng};
-use topology::Topology;
 use collect_slice::CollectSlice;
-use universal_rand::*;
-use numext::ClipExt;
+use util::universal_rand::*;
+use util::ClipExt;
 use quickersort;
 use std::collections::HashSet;
 use rayon::prelude::*;
