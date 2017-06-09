@@ -11,10 +11,19 @@ pub struct PotentialPool {
     connected_len: Vec<usize>,
 }
 
-#[derive(Debug,Clone,Default)]
+#[derive(Debug,Clone)]
 pub struct Synapse {
-    pub index: isize,
+    pub index: usize,
     pub permanence: f32,
+}
+
+impl Default for Synapse {
+    fn default() -> Self {
+        Synapse {
+            index: <usize>::max_value(),
+            permanence: std::f32::INFINITY,
+        }   
+    }
 }
 
 impl PotentialPool {
@@ -42,12 +51,12 @@ impl PotentialPool {
 
             let syn = if perm > options.trim_threshold {
                 Synapse {
-                    index: value as isize,
+                    index: value ,
                     permanence: ((perm * 100000.0) as i32 as f32 / 100000.0),
                 }
             } else {
                 Synapse {
-                    index: value as isize,
+                    index: value ,
                     permanence: 0.0,
                 }
             };
@@ -69,9 +78,9 @@ impl PotentialPool {
         if raise_prem {
             self.raise_permanence_to_threshold(index, stimulus_threshold, options);
         }
-        for mut value in self.connections_by_index_mut(index) {
+        for mut value in self.connections_by_column_mut(index) {
             if value.index >= 0 {
-                if (value.permanence <= options.trim_threshold) {
+                if value.permanence <= options.trim_threshold {
                     value.permanence = 0.0;
                 } else {
                     value.permanence = value.permanence.clip(options.min, options.max);
@@ -85,7 +94,7 @@ impl PotentialPool {
                                          index: usize,
                                          stimulus_threshold: i32,
                                          options: &SynapsePermenenceOptions) {
-        let perms = self.connections_by_index_mut(index);
+        let perms = self.connections_by_column_mut(index);
         loop {
             let num_connected =
                 perms
@@ -105,15 +114,15 @@ impl PotentialPool {
 
 
 
-    pub fn connected_by_index(&self, index: usize) -> &[Synapse] {
+    pub fn connected_by_column(&self, index: usize) -> &[Synapse] {
         self.synapses.children_sized(index, self.connected_len[index])
     }
 
-    pub fn connections_by_index(&self, index: usize) -> &[Synapse] {
+    pub fn connections_by_column(&self, index: usize) -> &[Synapse] {
         self.synapses.children(index)
     }
 
-    pub fn connections_by_index_mut(&mut self, index: usize) -> &mut [Synapse] {
+    pub fn connections_by_column_mut(&mut self, index: usize) -> &mut [Synapse] {
          self.synapses.children_mut(index)
     }
 }
