@@ -16,7 +16,7 @@ pub fn assert_approx_eq<T : std::ops::Sub<Output=T> + std::fmt::Debug + std::cmp
                         (left: `{:?}`, right: `{:?}`, expect diff: `{:?}`, real diff: `{:?}`)",
                 *v1, *v2, eps, abs);
     }
-}
+}   
 
 pub fn create_sp() -> SpatialPooler {
     let mut sp = SpatialPooler::new(vec![4,4], vec![5,3]);
@@ -42,6 +42,136 @@ pub fn create_sp() -> SpatialPooler {
 
     sp
 }
+
+#[test]
+fn test_compatability_1() {
+    let mut sp = create_sp();
+
+    let mut connections = vec![0i8; sp.num_inputs];
+    for (index, pmap) in get_python_initial_potential_mapping1().iter().enumerate() {
+        for con in connections.iter_mut() {
+            *con = 0;
+        }
+        for syn in sp.potential.connections_by_column(index) {
+            connections[syn.index as usize] = 1;
+        }
+        assert_eq!(connections.len(), pmap.len());
+        assert_eq!(&connections[..], &pmap[..]);
+    }
+
+    let mut connected = vec![0i8; sp.num_inputs];
+    for (index, pmap) in get_python_initial_column_connections().iter().enumerate() {
+        for con in connected.iter_mut() {
+            *con = 0;
+        }
+        for syn in sp.potential.connected_by_column(index) {
+            connected[syn.index as usize] = 1;
+        }
+        assert_eq!(connected.len(), pmap.len());
+        assert_eq!(&connected[..], &pmap[..]);
+    }
+
+    let mut permenences = vec![0f32; sp.num_inputs];
+    for (index, pmap) in get_python_initial_permanences1().iter().enumerate() {
+        for con in permenences.iter_mut() {
+            *con = 0.0;
+        }
+        for syn in sp.potential.connections_by_column(index) {
+            permenences[syn.index as usize] = syn.permanence;
+        }
+        assert_eq!(permenences.len(), pmap.len());
+        assert_approx_eq(&permenences, &pmap, 0.001);
+    }
+
+    let records = 100;
+    let sparsity = 0.4;
+    let inputs = bin_distrib(&mut UniversalRng::from_seed([42,0,0,0]), records, sp.num_inputs, sparsity);
+    let python_inputs = get_python_inputs1();
+
+    for (i1, i2) in inputs.iter().zip(python_inputs.iter()) {
+        assert_eq!(&i1[..], &i2[..]);
+    }
+
+    let mut bool_input = vec![false; sp.num_inputs];
+    let mut active_columns = vec![0i8; sp.num_columns];
+    let rand = &mut UniversalRng::from_seed([42,0,0,0]);
+    for ((index, input),output) in inputs.iter().enumerate().zip(get_python_outputs().iter()) {
+        let learn = rand.next_f64() > 0.5;
+        for (b,i) in bool_input.iter_mut().zip(input.iter()) {
+            *b = *i == 1;
+        }
+        sp.compute(&bool_input, learn);
+        for v in &mut active_columns {
+            *v = 0;
+        }   
+        for v in &sp.winner_columns {
+            active_columns[*v] = 1;
+        }
+        assert_eq!(&active_columns[..], &output[..]);
+
+        
+        let py_permences = sp_compatibility_permanences(index);
+        for (column,prems) in py_permences.iter().enumerate() {
+            for con in permenences.iter_mut() {
+                *con = 0.0;
+            }
+            for syn in sp.potential.connections_by_column(column) {
+                permenences[syn.index as usize] = syn.permanence;
+            }
+            assert_eq!(permenences.len(), prems.len());
+            assert_approx_eq(&permenences, &prems, 0.001);
+        }
+    }
+}
+
+
+pub fn rand_rows_cols(rand: &mut UniversalRng, rows: usize, cols: usize) -> Vec<Vec<f64>> {
+    let mut vecs = Vec::with_capacity(rows);
+    for r in 0..rows {
+        let mut v = Vec::with_capacity(cols);
+        for c in 0..cols {
+            v.push(rand.next_f64());
+        }
+        vecs.push(v);
+    }
+    vecs
+}
+    
+pub fn bin_distrib(rand: &mut UniversalRng, rows: usize, cols: usize, sparsity: f64 ) -> Vec<Vec<i8>>  {
+    let mut vec_rows = rand_rows_cols(rand, rows,cols);
+    
+    for row in &mut vec_rows {
+        let mut sub = row.iter().enumerate().filter(|&(i,v)| *v >= sparsity).map(|(i,v)| i).collect::<Vec<usize>>();
+        let sublen = sub.len();
+        let target = (sparsity * cols as f64) as usize;
+        
+        if sublen < target  {
+            let mut indecies = row.iter().enumerate().filter(|&(i,v)| *v < sparsity).map(|(i,v)| i).collect::<Vec<usize>>();
+            for _ in 0..target - sublen {
+                let ind = rand.next_uv_int(indecies.len() as i32) as usize;
+                let item = indecies.remove(ind);
+                row[item] = sparsity;
+            }
+        } else if sublen > target  {
+            for _ in 0..sublen - target {
+                let ind = rand.next_uv_int(sub.len()  as i32) as usize;
+                let item = sub.remove(ind);
+                row[item] = 0.0;
+            }
+        }
+    }
+
+    let mut vecs = Vec::with_capacity(rows);
+    for row in &mut vec_rows {
+        let mut v = Vec::with_capacity(cols);
+        for column in row {
+            v.push((*column >= sparsity) as i8);
+        }
+        vecs.push(v);
+    }
+    vecs
+}
+
 
 pub fn get_python_initial_potential_mapping1() -> Vec<Vec<i8>> {
         vec![
@@ -209,134 +339,6 @@ pub fn get_python_inputs1() -> Vec<Vec<i8>> {
 }
 
 
-#[test]
-fn test_compatability_1() {
-    let mut sp = create_sp();
-
-    let mut connections = vec![0i8; sp.num_inputs];
-    for (index, pmap) in get_python_initial_potential_mapping1().iter().enumerate() {
-        for con in connections.iter_mut() {
-            *con = 0;
-        }
-        for syn in sp.potential.connections_by_column(index) {
-            connections[syn.index as usize] = 1;
-        }
-        assert_eq!(connections.len(), pmap.len());
-        assert_eq!(&connections[..], &pmap[..]);
-    }
-
-    let mut connected = vec![0i8; sp.num_inputs];
-    for (index, pmap) in get_python_initial_column_connections().iter().enumerate() {
-        for con in connected.iter_mut() {
-            *con = 0;
-        }
-        for syn in sp.potential.connected_by_column(index) {
-            connected[syn.index as usize] = 1;
-        }
-        assert_eq!(connected.len(), pmap.len());
-        assert_eq!(&connected[..], &pmap[..]);
-    }
-
-    let mut permenences = vec![0f32; sp.num_inputs];
-    for (index, pmap) in get_python_initial_permanences1().iter().enumerate() {
-        for con in permenences.iter_mut() {
-            *con = 0.0;
-        }
-        for syn in sp.potential.connections_by_column(index) {
-            permenences[syn.index as usize] = syn.permanence;
-        }
-        assert_eq!(permenences.len(), pmap.len());
-        assert_approx_eq(&permenences, &pmap, 0.001);
-    }
-
-    let records = 100;
-    let sparsity = 0.4;
-    let inputs = bin_distrib(&mut UniversalRng::from_seed([42,0,0,0]), records, sp.num_inputs, sparsity);
-    let python_inputs = get_python_inputs1();
-
-    for (i1, i2) in inputs.iter().zip(python_inputs.iter()) {
-        assert_eq!(&i1[..], &i2[..]);
-    }
-
-    let mut bool_input = vec![false; sp.num_inputs];
-    let mut active_columns = vec![0i8; sp.num_columns];
-    let rand = &mut UniversalRng::from_seed([42,0,0,0]);
-    for ((index, input),output) in inputs.iter().enumerate().zip(get_python_outputs().iter()) {
-        let learn = rand.next_f64() > 0.5;
-        for (b,i) in bool_input.iter_mut().zip(input.iter()) {
-            *b = *i == 1;
-        }
-        sp.compute(&bool_input, learn);
-        for v in &mut active_columns {
-            *v = 0;
-        }   
-        for v in &sp.winner_columns {
-            active_columns[*v] = 1;
-        }
-        assert_eq!(&active_columns[..], &output[..]);
-
-        
-        let py_permences = sp_compatibility_permanences(index);
-        for (column,prems) in py_permences.iter().enumerate() {
-            for con in permenences.iter_mut() {
-                *con = 0.0;
-            }
-            for syn in sp.potential.connections_by_column(column) {
-                permenences[syn.index as usize] = syn.permanence;
-            }
-            assert_eq!(permenences.len(), prems.len());
-            assert_approx_eq(&permenences, &prems, 0.001);
-        }
-    }
-}
-
-
-pub fn rand_rows_cols(rand: &mut UniversalRng, rows: usize, cols: usize) -> Vec<Vec<f64>> {
-    let mut vecs = Vec::with_capacity(rows);
-    for r in 0..rows {
-        let mut v = Vec::with_capacity(cols);
-        for c in 0..cols {
-            v.push(rand.next_f64());
-        }
-        vecs.push(v);
-    }
-    vecs
-}
-    
-pub fn bin_distrib(rand: &mut UniversalRng, rows: usize, cols: usize, sparsity: f64 ) -> Vec<Vec<i8>>  {
-    let mut vec_rows = rand_rows_cols(rand, rows,cols);
-    
-    for row in &mut vec_rows {
-        let mut sub = row.iter().enumerate().filter(|&(i,v)| *v >= sparsity).map(|(i,v)| i).collect::<Vec<usize>>();
-        let sublen = sub.len();
-        let target = (sparsity * cols as f64) as usize;
-        
-        if sublen < target  {
-            let mut indecies = row.iter().enumerate().filter(|&(i,v)| *v < sparsity).map(|(i,v)| i).collect::<Vec<usize>>();
-            for _ in 0..target - sublen {
-                let ind = rand.next_uv_int(indecies.len() as i32) as usize;
-                let item = indecies.remove(ind);
-                row[item] = sparsity;
-            }
-        } else if sublen > target  {
-            for _ in 0..sublen - target {
-                let ind = rand.next_uv_int(sub.len()  as i32) as usize;
-                let item = sub.remove(ind);
-                row[item] = 0.0;
-            }
-        }
-    }
-
-    let mut vecs = Vec::with_capacity(rows);
-    for row in &mut vec_rows {
-        let mut v = Vec::with_capacity(cols);
-        for column in row {
-            v.push((*column >= sparsity) as i8);
-        }
-        vecs.push(v);
-    }
-    vecs
-}
 
 pub fn get_python_outputs() -> Vec<Vec<i8>> {
     vec![
