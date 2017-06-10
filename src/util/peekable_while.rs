@@ -1,11 +1,21 @@
 use std::iter;
 
-pub struct PeekableWhile<'a, I : Iterator + 'a, P> {
+pub struct PeekableWhile<'a, I : Iterator + 'a, P: FnMut(&I::Item) -> bool> {
     iter: &'a mut iter::Peekable<I>,
     predicate: P,
 }
 
-impl<'a, I : Iterator + 'a, P> PeekableWhile<'a, I, P>  where P: FnMut(&I::Item) -> bool {
+pub trait PeekableWhileTrait<'a, I : Iterator,P: FnMut(&I::Item) -> bool> {
+    fn take_while_peek(&'a mut self, predicate:P) -> PeekableWhile<'a, I,P>;
+} 
+
+impl<'a, I: Iterator, P: FnMut(&I::Item) -> bool> PeekableWhileTrait<'a, I,P> for iter::Peekable<I> {
+    fn take_while_peek(&'a mut self, predicate:P) -> PeekableWhile<'a, I,P> {
+        PeekableWhile{ iter: self, predicate: predicate}
+    }
+}
+
+impl<'a, I : Iterator + 'a, P: FnMut(&I::Item) -> bool> PeekableWhile<'a, I, P>  {
     pub fn new(peekable: &mut iter::Peekable<I>, predicate: P ) -> PeekableWhile<I,P> {
         PeekableWhile{ iter: peekable, predicate: predicate}
     }

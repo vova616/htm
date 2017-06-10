@@ -3,7 +3,7 @@ use std::collections::HashSet;
 use std::cmp;
 use fnv::{FnvHashMap,FnvHashSet};
 use rand::{Rng, XorShiftRng, SeedableRng};
-use util::{UniversalRng, UniversalNext, PeekableWhile};
+use util::{UniversalRng, UniversalNext, PeekableWhile, PeekableWhileTrait};
 use util::numext::*;
 use quickersort;
 
@@ -494,9 +494,9 @@ impl TemporalMemory {
 
             debug!("loop {} {:?} {:?} {:?}", column_idx, curr_column, seg_active, seg_matching);
 
-            let mut active_segs = PeekableWhile::new(iter_active_segs.by_ref(), |x| x.segment.cell.column == column_idx);
-            let mut matching_segs = PeekableWhile::new(iter_matching_segs.by_ref(), |x| x.segment.cell.column == column_idx);
-
+            let mut active_segs = iter_active_segs.take_while_peek(|x| x.segment.cell.column == column_idx);
+            let mut matching_segs = iter_matching_segs.take_while_peek(|x| x.segment.cell.column == column_idx);
+            
             if active_column {
                 if active_segment { 
                     //Activate Predicted Column
