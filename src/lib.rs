@@ -4,7 +4,7 @@
 
 
 pub use self::util::{UniversalRng,UniversalNext};
-pub use self::algo::{TemporalMemory,SDRClassifier,SpatialPooler};
+pub use self::algo::{TemporalMemory,SDRClassifier,SpatialPooler,Cell,Synapse,Segment};
 pub use self::encoder::ScalarEncoder;
 
 mod encoder;

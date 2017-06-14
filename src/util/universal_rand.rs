@@ -30,9 +30,6 @@ impl UniversalRng {
     }
 
     pub fn from_seed(seed: [u32; 4]) -> UniversalRng {
-        assert!(!seed.iter().all(|&x| x == 0),
-                "UniversalRng::from_seed called with an all zero seed.");
-
         UniversalRng { seed: seed[0] as u64 + seed[1] as u64 + seed[2] as u64 + seed[3] as u64 }
     }
 
@@ -41,9 +38,6 @@ impl UniversalRng {
     }
 
     pub fn reseed(&mut self, seed: [u32; 4]) {
-        assert!(!seed.iter().all(|&x| x == 0),
-                "UniversalRng.reseed called with an all zero seed.");
-
         self.seed = seed[0] as u64 + seed[1] as u64 + seed[2] as u64 + seed[3] as u64;
     }
 }

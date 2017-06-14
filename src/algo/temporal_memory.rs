@@ -9,20 +9,22 @@ use quickersort;
 
 pub struct TemporalMemory {
     pub active_cells: FnvHashSet<Cell>,
-    prev_active_cells: FnvHashSet<Cell>,
+    pub prev_active_cells: FnvHashSet<Cell>,
 
     pub winner_cells: FnvHashSet<Cell>,
-    prev_winner_cells: FnvHashSet<Cell>,
+    pub prev_winner_cells: FnvHashSet<Cell>,
+
+    predictive_cells: FnvHashSet<Cell>,
 
     synapse_map: FnvHashMap<Cell, FnvHashSet<SynapseLink>>,
     segments: FnvHashMap<Cell, Vec<Segment>>,
 
-   
     segments_am_helper: FnvHashMap<SegmentRef, (u32,u32)>,
 
     pub segments_active: Vec<SegmentScore>,
     pub segments_matching: Vec<SegmentScore>,
 
+    empty_segments: Vec<Segment>,
 
     /**
      * If the number of active connected synapses on a segment
@@ -63,7 +65,7 @@ pub struct TemporalMemory {
 
     pub predicted_segment_decrement: f32,
 
-
+    pub iteration: u64,
     
 
     pub cells: u32,
@@ -125,11 +127,6 @@ impl PartialOrd for Cell {
 }
 
 
-#[derive(Debug)]
-pub struct Segment {
-    pub cell: Cell,
-    pub synapses: Vec<Synapse>,
-}
 
 #[derive(Debug,Copy,Clone,Eq,Hash,PartialEq)]
 pub struct SegmentRef {
@@ -231,7 +228,7 @@ impl PartialOrd for SynapseLink {
 }
 
 
-
+#[derive(Clone)]
 pub struct Synapse {
     pub cell: Cell,
     pub permanence: f32,
@@ -246,20 +243,36 @@ impl fmt::Debug for Synapse {
     }
 }
 
+#[derive(Debug,Clone)]
+pub struct Segment {
+    pub cell: Cell,
+    pub synapses: Vec<Synapse>,
+    pub last_used: u64,
+}
+
 
 impl Segment {
-    pub fn new(column: u32, cell: u32) -> Segment {
+    pub fn new(column: u32, cell: u32, iteration: u64) -> Segment {
         Segment {
             cell: Cell {
                 column: column,
                 cell: cell,
             },
+            last_used: iteration,
+            synapses: Vec::new(),
+        }
+    } 
+
+    pub fn new_from_cell(cell: Cell, iteration: u64) -> Segment {
+        Segment {
+            cell: cell,
+            last_used: iteration,
             synapses: Vec::new(),
         }
     } 
 
    
-    pub fn grow_synapses<R: Rng>(&mut self, active_cells: &FnvHashSet<Cell>, initial_permanence: f32, desired: u32, rand: &mut R) -> (&[Synapse], std::ops::Range<usize>) {
+    fn grow_synapses<R: Rng>(&mut self, active_cells: &FnvHashSet<Cell>, initial_permanence: f32, desired: u32, rand: &mut R) -> std::ops::Range<usize> {
         let mut cells = active_cells.iter().cloned().collect::<Vec<Cell>>();
         cells.sort();
 
@@ -284,7 +297,7 @@ impl Segment {
         }
 
         let len = self.synapses.len();
-        (&self.synapses, len - n_actual..len)
+        len - n_actual..len
     }
 
     pub fn create_synapse(&mut self, cell: Cell, permanence: f32)
@@ -292,7 +305,7 @@ impl Segment {
         self.synapses.push(Synapse{cell: cell, permanence: permanence});
     }
 
-    pub fn adapt_segment(&mut self, active_cells: &FnvHashSet<Cell>, map: &mut FnvHashMap<Cell, FnvHashSet<SynapseLink>>, seg_ref: &SegmentRef, perm_inc: f32, perm_dec: f32, connected: f32) {
+    fn adapt_segment(&mut self, active_cells: &FnvHashSet<Cell>, map: &mut FnvHashMap<Cell, FnvHashSet<SynapseLink>>, seg_ref: &SegmentRef, perm_inc: f32, perm_dec: f32, connected: f32) {
         let mut index = 0;
         while index < self.synapses.len() {
             let mut deleted = false;
@@ -343,12 +356,17 @@ impl TemporalMemory {
             winner_cells: FnvHashSet::default(),
             prev_winner_cells: FnvHashSet::default(),
 
+            predictive_cells: FnvHashSet::default(),
+
             segments_am_helper: FnvHashMap::default(),
             synapse_map: FnvHashMap::default(),
             segments: FnvHashMap::default(),
-       
+
+            iteration: 1,
+
             segments_active: Vec::new(),
             segments_matching: Vec::new(),
+            empty_segments: Vec::new(),
 
             activation_threshold: 13,
             min_threshold: 10,
@@ -396,24 +414,40 @@ impl TemporalMemory {
         }
     }
 
-    fn add_synapses(map: &mut FnvHashMap<Cell, FnvHashSet<SynapseLink>>, syns: &[Synapse], range: std::ops::Range<usize>, segment: &SegmentRef, connected: f32 ) 
+    fn add_synapses(map: &mut FnvHashMap<Cell, FnvHashSet<SynapseLink>>, segment: &mut Segment, range: std::ops::Range<usize>, segment_ref: &SegmentRef, connected: f32, max_synapses: u32) 
     {
+        let mut syns = &mut segment.synapses;
         for (index, syn) in syns[range].iter().enumerate() {
-            map.entry(syn.cell).or_insert(FnvHashSet::default()).replace(SynapseLink{segment: *segment, connected: syn.permanence >= connected});
+            map.entry(syn.cell).or_insert(FnvHashSet::default()).replace(SynapseLink{segment: *segment_ref, connected: syn.permanence >= connected});
+        }
+
+        //TODO: maybe sort and then remove, better for efficiency when syns.len() - max_synapses > log(syns.len())
+        while syns.len() > max_synapses as usize {
+            let index = { 
+                let (i,syn) = syns.iter().enumerate().min_by(|&(_,s), &(_,s2)| s.permanence.partial_cmp(&s2.permanence).unwrap()).unwrap();
+                map.get_mut(&syn.cell).unwrap().remove(&SynapseLink{segment: *segment_ref, connected: false});
+                i
+            };
+            syns.swap_remove(index);
         }
     }
+
+   
 
     pub fn reset(&mut self) {
         self.winner_cells.clear();
         self.active_cells.clear();
         self.segments_matching.clear();
         self.active_cells.clear();
+        self.predictive_cells.clear();
     }
 
     pub fn activate_dendrites(&mut self, learn: bool) {
         self.segments_active.clear();
         self.segments_matching.clear();
         self.segments_am_helper.clear();
+        self.predictive_cells.clear();
+
         for cell in self.active_cells.iter() {
             match self.synapse_map.get(&cell) {
                 Some(vec) => {
@@ -435,6 +469,13 @@ impl TemporalMemory {
                 self.segments_matching.push(SegmentScore{segment: *key, matched: val.1 });
             }
         }   
+
+        if learn {
+            for seg in &self.segments_active {
+                self.segments.get_mut(&seg.segment.cell).unwrap()[seg.segment.segment as usize].last_used = self.iteration;
+            }
+            self.iteration += 1;
+        }
         
         quickersort::sort(&mut self.segments_active);
         quickersort::sort(&mut self.segments_matching);
@@ -442,6 +483,14 @@ impl TemporalMemory {
         debug!("winner_cells {:?}", self.winner_cells);
         debug!("active {:?}", self.segments_active);
         debug!("matching {:?}", self.segments_matching);
+    }
+
+    pub fn get_segment(&self, seg_ref: &SegmentRef) -> &Segment {
+        &self.segments.get(&seg_ref.cell).unwrap()[seg_ref.segment as usize]
+    }
+
+    pub fn get_segment_mut(&mut self, seg_ref: &SegmentRef) -> &mut Segment {
+        &mut self.segments.get_mut(&seg_ref.cell).unwrap()[seg_ref.segment as usize]
     }
 
     pub fn active_cells(&mut self,active_columns: &[usize], learn: bool)
@@ -513,8 +562,8 @@ impl TemporalMemory {
                             seg.adapt_segment(&self.prev_active_cells, &mut self.synapse_map, &active_seg.segment, self.permanence_increment, self.permanence_decrement, self.connected_permanence);
                             let n_grow_desired = self.max_new_synapse_count  as i32 - active_potential as i32;
                             if n_grow_desired > 0 {
-                                let (syns,range) = seg.grow_synapses(&self.prev_winner_cells, self.initial_permanence, n_grow_desired as u32, &mut self.rand);
-                                TemporalMemory::add_synapses(&mut self.synapse_map, syns, range, &active_seg.segment, self.connected_permanence);
+                                let range = seg.grow_synapses(&self.prev_winner_cells, self.initial_permanence, n_grow_desired as u32, &mut self.rand);
+                                TemporalMemory::add_synapses(&mut self.synapse_map, seg, range, &active_seg.segment, self.connected_permanence, self.max_synapses_per_segment);
                             }
                         }
                     }
@@ -541,8 +590,8 @@ impl TemporalMemory {
                              seg.adapt_segment(&self.prev_active_cells,  &mut self.synapse_map, &best_seg, self.permanence_increment, self.permanence_decrement, self.connected_permanence);
                              let n_grow_desired = self.max_new_synapse_count  as i32 - active_potential as i32;
                              if n_grow_desired > 0 {
-                                let (syns,range) = seg.grow_synapses(&self.prev_winner_cells, self.initial_permanence, n_grow_desired as u32, &mut self.rand);
-                                TemporalMemory::add_synapses(&mut self.synapse_map, syns, range, &best_seg, self.connected_permanence);
+                                let range = seg.grow_synapses(&self.prev_winner_cells, self.initial_permanence, n_grow_desired as u32, &mut self.rand);
+                                TemporalMemory::add_synapses(&mut self.synapse_map, seg, range, &best_seg, self.connected_permanence, self.max_synapses_per_segment);
                              }
                              debug!("Update Matching {:?}", seg);
                         }
@@ -551,15 +600,15 @@ impl TemporalMemory {
                          self.winner_cells.insert(cell);
                          let n_grow_desired = cmp::min(self.max_new_synapse_count, self.prev_winner_cells.len() as u32);
                          if n_grow_desired > 0 {
-                            let mut seg = Segment::new(cell.column, cell.cell);
-                            let vec = self.segments.entry(cell).or_insert(Vec::new());
+                            let mut seg = Segment::new(cell.column, cell.cell, self.iteration);
+                            let mut vec = self.segments.entry(cell).or_insert(Vec::new());
                             let seg_ref = SegmentRef{ cell: cell, segment: vec.len() as u32};
                             {
-                                let (syns, range) = seg.grow_synapses(&self.prev_winner_cells, self.initial_permanence, n_grow_desired, &mut self.rand);
-                                TemporalMemory::add_synapses(&mut self.synapse_map, syns, range, &seg_ref, self.connected_permanence);
+                                let range = seg.grow_synapses(&self.prev_winner_cells, self.initial_permanence, n_grow_desired, &mut self.rand);
+                                TemporalMemory::add_synapses(&mut self.synapse_map, &mut seg, range, &seg_ref, self.connected_permanence, self.max_synapses_per_segment);
                             }
                             debug!("New Segment {:?}", seg);
-                            vec.push(seg);
+                            Self::insert_segment(&mut vec, seg, &mut self.synapse_map, self.max_segments_per_cell);
                          }
                      }      
                 }
@@ -584,7 +633,69 @@ impl TemporalMemory {
             }
         }
     }   
+
+    pub fn get_cell(&self, cell: usize) -> Cell {
+        Cell{ column: (cell / self.cells  as usize) as u32, cell:  (cell % self.cells as usize) as u32 }
+    }
+
+    pub fn create_segment(&self, cell: Cell) -> Segment {
+        Segment::new_from_cell(cell, self.iteration)
+    }
+
+    pub fn add_segment(&mut self, mut segment: Segment) {
+        let cell = segment.cell;
+        let mut vec = self.segments.entry(cell).or_insert(Vec::new());
+        let seg_ref = SegmentRef{ cell: cell, segment: vec.len() as u32};
+        {   
+            let range =  0..segment.synapses.len();
+            TemporalMemory::add_synapses(&mut self.synapse_map, &mut segment, range, &seg_ref, self.connected_permanence, self.max_synapses_per_segment);
+        }
+        Self::insert_segment(&mut vec, segment, &mut self.synapse_map, self.max_segments_per_cell);
+    }   
     
+    fn insert_segment(segments: &mut Vec<Segment>, segment: Segment, map: &mut FnvHashMap<Cell, FnvHashSet<SynapseLink>>, max_segments: u32) {
+        if segments.len() >= max_segments as usize {
+            let index = {
+                let (index, seg) = segments.iter().enumerate().min_by_key(|&(_,seg)| seg.last_used * (seg.synapses.len() > 0) as u64).unwrap();
+                let seg_ref = SegmentRef{ cell: seg.cell, segment: index as u32};
+                for syn in &seg.synapses {
+                    map.get_mut(&syn.cell).unwrap().remove(&SynapseLink{segment: seg_ref, connected: false});
+                }
+                index
+            };
+            segments[index] = segment;
+        } else {
+            let index_opt = match segments.iter().enumerate().find(|&(index, seg)| seg.synapses.len() == 0) {
+                Some((index,_)) => Some(index),
+                None => None,
+            };
+            match index_opt {
+                Some(index) => segments[index] = segment,
+                None => segments.push(segment),
+            }
+        }
+    }
+
+    pub fn num_segments(&self) -> usize {
+        self.segments.iter().fold(0, |sum, i| sum + i.1.len())
+    }
+    
+    pub fn get_segments(&self, cell: Cell) -> &Vec<Segment> {
+        match self.segments.get(&cell) {
+            Some(vec) => &vec,
+            None => &self.empty_segments
+        }
+    }
+
+    pub fn get_predictive_cells(&mut self) -> &FnvHashSet<Cell> {
+        if self.predictive_cells.len() == 0 {
+            for seg in &self.segments_active {
+                self.predictive_cells.insert(seg.segment.cell);
+            }
+        }
+        &self.predictive_cells
+    }
+
     pub fn least_used_cell<R: Rng>(column: u32, rand: &mut R, segments: &FnvHashMap<Cell, Vec<Segment>>, max_cells: u32) -> Cell {
         let mut min = <usize>::max_value();
         let mut counter = 0;

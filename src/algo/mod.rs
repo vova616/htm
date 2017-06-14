@@ -5,7 +5,7 @@ mod topology;
 mod temporal_memory;
 
 pub use self::spatial_pooler::{SpatialPooler, SynapsePermenenceOptions};
-pub use self::temporal_memory::TemporalMemory;
+pub use self::temporal_memory::{TemporalMemory, Cell, Segment, Synapse};
 pub use self::sdr_classifier::SDRClassifier;
 pub use self::topology::Topology;
 pub use self::potential_pool::PotentialPool;
