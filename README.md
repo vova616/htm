@@ -13,6 +13,8 @@ Examples in examples folder, MNIST example got a score of 95% accuracy.
 - [x] SpatialPooler
 - [x] SDRClassifier
 - [ ] Encoders
-    - [X] ScalarEncoder
-    - [ ] Others
+    - [x] ScalarEncoder
+    - [x] AdaptiveScalarEncoder
+    - [x] DeltaEncoder
+    - [ ] DateEncoder
 - [x] TemporalMemory
