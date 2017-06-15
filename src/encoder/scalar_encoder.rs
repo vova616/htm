@@ -5,21 +5,19 @@ use std::ops::{Sub, Add, Mul, Div, Range};
 
 pub struct ScalarEncoder {
     pub size: usize,
-    internal_size: usize,
-    width: usize,
-    half_width: usize,
-    padding: usize,
-    radius: f64,
-    resolution: f64,
-    wrap: bool,
-    clip: bool,
-
-    output: Vec<bool>,
-
-    min: f64,
-    max: f64,
-    internal_range: f64,
-    range: f64,
+    pub(crate) internal_size: usize,
+    pub(crate) width: usize,
+    pub(crate) half_width: usize,
+    pub(crate) padding: usize,
+    pub(crate) radius: f64,
+    pub(crate) resolution: f64,
+    pub(crate) wrap: bool,
+    pub(crate) clip: bool,
+    pub(crate) output: Vec<bool>,
+    pub(crate) min: f64,
+    pub(crate) max: f64,
+    pub(crate) internal_range: f64,
+    pub(crate) range: f64,
 }   
 
 
@@ -27,15 +25,24 @@ pub struct ScalarEncoder {
 impl ScalarEncoder {
 
     pub fn new(width: usize, min: f64, max: f64, size: usize, wrap: bool) -> ScalarEncoder {
-        ScalarEncoder::new_intenal(size, width, 0.0, 0.0, min, max, wrap)
+        let mut encoder = ScalarEncoder::new_intenal(size, width, 0.0, 0.0, min, max, wrap);
+        encoder.init();
+        encoder.internal_size = encoder.size - 2 * encoder.padding;
+        encoder
     }
 
     pub fn new_with_resolution(width: usize, min: f64, max: f64, resolution: f64, wrap: bool) -> ScalarEncoder {
-        ScalarEncoder::new_intenal(0, width, 0.0, resolution, min, max, wrap)
+        let mut encoder = ScalarEncoder::new_intenal(0, width, 0.0, resolution, min, max, wrap);
+        encoder.init();
+        encoder.internal_size = encoder.size - 2 * encoder.padding;
+        encoder
     }
 
     pub fn new_with_radius(width: usize, min: f64, max: f64, radius: f64, wrap: bool) -> ScalarEncoder {
-        ScalarEncoder::new_intenal(0, width, radius, 0.0, min, max, wrap)
+        let mut encoder = ScalarEncoder::new_intenal(0, width, radius, 0.0, min, max, wrap);
+        encoder.init();
+        encoder.internal_size = encoder.size - 2 * encoder.padding;
+        encoder
     }
 
     fn new_intenal(size: usize, width: usize, radius: f64, resolution: f64, min: f64, max: f64, wrap: bool) -> ScalarEncoder {
@@ -49,7 +56,7 @@ impl ScalarEncoder {
              panic!("maxVal must be > minVal");
         }
         let half_width = (width-1) / 2;
-        let mut encoder = ScalarEncoder {
+        ScalarEncoder {
             size: size,
             internal_size: size,
             width: width,
@@ -64,17 +71,10 @@ impl ScalarEncoder {
             max: max,
             range: max - min,
             internal_range: max - min,
-        };
-
-        encoder.init();
-
-        encoder.internal_size = encoder.size - 2 * encoder.padding;
-
-        encoder
+        }
     }
 
- 
-    fn init(&mut self) {
+    pub(crate) fn init(&mut self) {
         if self.size != 0 {
             self.resolution = if !self.wrap {
                 self.internal_range / (self.size - self.width) as f64
@@ -143,7 +143,7 @@ impl ScalarEncoder {
         }
     }
 
-    pub fn encode_into(&self, input: f64, output: &mut [bool]) {
+    pub fn encode_into(&mut self, input: f64, output: &mut [bool]) {
        let mut range = self.get_encode_range(input);
        Self::encode_into_internal(input, output, range, self.size as isize, self.wrap);
     }
@@ -157,7 +157,7 @@ impl ScalarEncoder {
         &self.output    
     }
 
-    pub fn get_bucket_index(&self, input: f64) -> Option<usize> {
+    pub fn get_bucket_index(&mut self, input: f64) -> Option<usize> {
         match self.get_first_on_bit(input) {
             Some(minbin) => {
                 //For periodic encoders, the bucket index is the index of the center bit
