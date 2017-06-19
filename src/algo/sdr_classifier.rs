@@ -56,6 +56,10 @@ pub struct SDRClassifier<T>
      * to return
      */
     actual_values: Vec<Option<T>>,
+
+    error: Vec<f32>,
+    infer: Vec<(u8, Vec<f32>)>,
+    infer_empty: Vec<(u8, Vec<f32>)>,
 }
 
 impl<T> SDRClassifier<T>
@@ -89,7 +93,14 @@ impl<T> SDRClassifier<T>
             max_input_idx: column_size - 1,
             learn_iteration: 0,
             weight_matrix: vec![vec![vec![0f32; column_size]; 1]; len],
+            error: Vec::with_capacity(10),
+            infer: vec![(0, Vec::new());len],
+            infer_empty: vec![(0, Vec::new());len],
         }
+    }
+
+    pub fn get_value(&self, bucket: usize) -> Option<T> {
+        self.actual_values[bucket].clone()
     }
 
     /**
@@ -167,7 +178,7 @@ impl<T> SDRClassifier<T>
                    pattern: &[usize],
                    learn: bool,
                    infer: bool)
-                   -> Vec<(u8, Vec<f32>)> {
+                   -> &Vec<(u8, Vec<f32>)> {
         // Classification<T> retVal = null;
         //List<T> actualValues = (List<T>)this.actualValues;
 
@@ -190,11 +201,7 @@ impl<T> SDRClassifier<T>
         //------------------------------------------------------------------------
         //Inference:
         //For each active bit in the activationPattern, get the classification votes
-        let ret = if infer {
-            self.infer(pattern)
-        } else {
-            vec![(0, vec![0.0])]
-        };
+        self.infer(pattern);
 
         //------------------------------------------------------------------------
         //Learning:
@@ -231,19 +238,26 @@ impl<T> SDRClassifier<T>
                 self.actual_values[bucket_idx] = Some(act_value);
             }
 
-            let mut error = vec![0f32; self.max_bucket_idx + 1];
+            self.error.clear();
+            let cap = self.error.capacity();
+            if self.max_bucket_idx+1 > cap {
+                self.error.reserve(self.max_bucket_idx+1 - cap);
+            }
+            for _ in 0..self.max_bucket_idx + 1 {
+                self.error.push(0.0);
+            }
 
             for &(ref iter, ref pattern) in &self.pattern_history {
                 let nSteps = (self.learn_iteration - iter) as usize;
                 let nstps = nSteps as u8;
                 if self.steps.contains(&nstps) {
-                    self.infer_single_step(&pattern, nSteps, &mut error);
-                    for (index, val) in error.iter_mut().enumerate() {
+                    Self::infer_single_step(&self.weight_matrix[nSteps], &pattern, nSteps, &mut self.error);
+                    for (index, val) in self.error.iter_mut().enumerate() {
                         *val = ((index == bucket_idx) as usize) as f32 - *val;
                     }
                     for (index, matrix) in self.weight_matrix[nSteps].iter_mut().enumerate() {
                         for &bit in pattern {
-                            matrix[bit] += self.alpha * error[index];
+                            matrix[bit] += self.alpha * self.error[index];
                             //matrix[bit].clip(-1.0, 1.0); not sure if needed
                         }
                     }
@@ -252,26 +266,32 @@ impl<T> SDRClassifier<T>
         }
 
 
-        ret
+        if infer {
+            &self.infer
+        } else {
+            &self.infer_empty
+        }
     }
 
-    pub fn infer(&self, pattern: &[usize]) -> Vec<(u8, Vec<f32>)> {
-        self.steps
-            .iter()
-            .map(|&step| {
-                     let mut error = vec![0f32; self.max_bucket_idx + 1];
-                     self.infer_single_step(pattern, step as usize, &mut error[..]);
-                     (step, error)
-                 })
-            .collect()
+    pub fn infer(&mut self, pattern: &[usize]) {
+        for (step,infer) in self.steps.iter().zip(self.infer.iter_mut()) {
+            infer.1.clear();
+            let cap = infer.1.capacity();
+            if self.max_bucket_idx + 1 > cap {
+                infer.1.reserve(self.max_bucket_idx + 1 - cap);
+            }
+            for _ in 0..infer.1.capacity() {
+                infer.1.push(0.0);
+            }
+
+            Self::infer_single_step(&self.weight_matrix[*step as usize], pattern, *step as usize, &mut infer.1[..]);
+            infer.0 = *step;
+        }
     }
 
-    pub fn infer_single_step(&self, pattern: &[usize], step: usize, into: &mut [f32]) {
+    pub fn infer_single_step(matrix: &Vec<Vec<f32>>, pattern: &[usize], step: usize, into: &mut [f32]) {
         // Compute the output activation "level" for each bucket (matrix row)
         // we've seen so far and store in double[]
-
-        let matrix = &self.weight_matrix[step];
-
         for (index, val) in into.iter_mut().enumerate() {
             *val = 0.0;
             for &pattern_value in pattern {
