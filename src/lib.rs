@@ -4,8 +4,8 @@
 
 
 pub use self::util::{UniversalRng,UniversalNext};
-pub use self::algo::{TemporalMemory,SDRClassifier,SpatialPooler,Cell,Synapse,Segment};
-pub use self::encoder::ScalarEncoder;
+pub use self::algo::{TemporalMemory,SDRClassifier,Cell,Synapse,Segment, SpatialPooler};
+pub use self::encoder::{ScalarEncoder,DeltaEncoder,AdaptiveScalarEncoder};
 
 mod encoder;
 mod util;
