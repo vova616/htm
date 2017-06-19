@@ -80,7 +80,7 @@ pub fn test_activate_correctly_predictive_cells() {
         let predictive_cells = tm.get_predictive_cells();
         assert_eq!(expected_active_cells.len(), predictive_cells.len());
         for cell in &expected_active_cells {
-            assert_eq!(true, predictive_cells.contains(&cell));
+            assert_eq!(true, predictive_cells.contains_key(&cell));
         }
     }
 
@@ -312,7 +312,7 @@ pub fn test_no_change_to_matching_segments_in_predicted_active_column() {
         let predictive_cells = tm.get_predictive_cells();
         assert_eq!(expected_active_cells.len(), predictive_cells.len());
         for cell in &expected_active_cells {
-            assert_eq!(true, predictive_cells.contains(&cell));
+            assert_eq!(true, predictive_cells.contains_key(&cell));
         }
     }
 
