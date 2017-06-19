@@ -5,7 +5,7 @@ use std::collections::VecDeque;
 use std::f64;
 
 pub struct AdaptiveScalarEncoder {
-    encoder: ScalarEncoder,
+    pub(crate) encoder: ScalarEncoder,
     window: VecDeque<f64>,
 }   
 
@@ -17,7 +17,7 @@ impl AdaptiveScalarEncoder {
     }
 
     pub fn new_window(width: usize, size: usize, minmax: Option<Range<f64>>, window_size: usize) -> AdaptiveScalarEncoder {
-        let minmax_o = minmax.unwrap_or(0.0..0.0);
+        let minmax_o = minmax.unwrap_or(0.0..1.0);
         let mut encoder = AdaptiveScalarEncoder {
             encoder: ScalarEncoder::new(width, minmax_o.start, minmax_o.end, size, false),
             window: VecDeque::with_capacity(window_size),
@@ -40,6 +40,10 @@ impl AdaptiveScalarEncoder {
         self.encoder.encode(input)
     }
 
+    pub fn get_bucket_value(&self, bucket: usize) -> f64 {
+       self.encoder.get_bucket_value(bucket)
+    }
+
     fn set_encoder_params(&mut self) {
         self.encoder.internal_range = self.encoder.max - self.encoder.min;
         self.encoder.resolution = self.encoder.internal_range / (self.encoder.size - self.encoder.width) as f64;
@@ -49,7 +53,7 @@ impl AdaptiveScalarEncoder {
     }
 
     pub fn get_bucket_index(&mut self, input: f64) -> Option<usize> {
-        if !input.is_nan() {
+        if input.is_nan() {
             return None;
         }
         self.update_minmax(input);
@@ -89,5 +93,9 @@ impl AdaptiveScalarEncoder {
                 self.set_encoder_params();
             }
         }
+    }
+
+    pub fn size(&self) -> usize {
+        self.encoder.size
     }
 }   

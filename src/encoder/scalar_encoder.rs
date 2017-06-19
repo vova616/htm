@@ -4,7 +4,7 @@ use std::ops::{Sub, Add, Mul, Div, Range};
 
 
 pub struct ScalarEncoder {
-    pub size: usize,
+    pub(crate) size: usize,
     pub(crate) internal_size: usize,
     pub(crate) width: usize,
     pub(crate) half_width: usize,
@@ -114,6 +114,14 @@ impl ScalarEncoder {
         minbin..maxbin
     }
 
+    pub fn get_bucket_value(&self, bucket: usize) -> f64 {
+        if(self.wrap) {
+            self.min + self.resolution / 2.0 + bucket as f64 * self.resolution
+        }else{
+            self.min + bucket as f64 * self.resolution
+        }
+    }
+
     fn encode_into_internal(input: f64, output: &mut [bool], mut range: Range<isize>, size: isize, wrap: bool) {
         for v in &mut output[..] {
             *v = false;
@@ -218,5 +226,9 @@ impl ScalarEncoder {
         };
 
         Some(centerbin + self.padding as isize - self.half_width as isize)
+    }
+
+    pub fn size(&self) -> usize {
+        self.size
     }
 }

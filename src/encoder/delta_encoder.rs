@@ -30,4 +30,12 @@ impl DeltaEncoder {
     pub fn get_bucket_index(&mut self, input: f64) -> Option<usize> {
         self.encoder.get_bucket_index(input)
     }
+
+    pub fn size(&self) -> usize {
+        self.encoder.encoder.size
+    }
+
+    pub fn get_bucket_value(&self, bucket: usize) -> f64 {
+       self.encoder.encoder.get_bucket_value(bucket)
+    }
 }
