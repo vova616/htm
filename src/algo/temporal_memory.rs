@@ -556,32 +556,31 @@ impl TemporalMemory {
             
             if active_column {
                 if active_segment { 
-                    if matching_segment {
-                        matching_segs.drain();
-                    }
-                    self.activate_predicted_column(active_segs, learn);
+                    self.activate_predicted_column(&mut active_segs, learn);
                 } else {
                      //Burst whole Column
                      for cell in 0..self.cells {
                          self.active_cells.insert(Cell{column:column_idx, cell: cell});
                      }
                      if matching_segment {  
-                        self.adapt_best_segment(matching_segs, learn);
+                        self.adapt_best_segment(&mut matching_segs, learn);
                      } else {
                         self.grow_segment(column_idx);
                      }      
                 }
             } else {
-                if active_segment {
-                    active_segs.drain();
-                }
                 if matching_segment {
                     if self.predicted_segment_decrement > 0.0 {
-                        self.punish_predicted_columns(matching_segs);
-                    } else {
-                        matching_segs.drain();
+                        self.punish_predicted_columns(&mut matching_segs);
                     }
                 }
+            }
+            
+            if matching_segment {
+                matching_segs.drain();
+            }
+            if active_segment {
+                active_segs.drain();
             }
         }
         }
@@ -605,7 +604,7 @@ impl TemporalMemory {
         }
     }
 
-    fn adapt_best_segment<'a, I: Iterator<Item=&'a SegmentScore>>(&mut self, matching_segs: I, learn: bool) {
+    fn adapt_best_segment<'a, I: Iterator<Item=&'a SegmentScore>>(&mut self, matching_segs: &mut I, learn: bool) {
         let best_seg = matching_segs.max_by_key(|s| s.matched).unwrap();
         self.winner_cells.insert(best_seg.segment.cell);
         let seg = &mut self.segments.get_mut(&best_seg.segment.cell).unwrap()[best_seg.segment.segment as usize];
@@ -621,7 +620,7 @@ impl TemporalMemory {
         }
     }
 
-    fn punish_predicted_columns<'a, I: Iterator<Item=&'a SegmentScore>>(&mut self, matching_segs: I) {
+    fn punish_predicted_columns<'a, I: Iterator<Item=&'a SegmentScore>>(&mut self, matching_segs: &mut I) {
          for seg_ref in matching_segs {
             let vec = &mut self.segments.get_mut(&seg_ref.segment.cell).unwrap();
             let seg = &mut vec[seg_ref.segment.segment as usize];
@@ -632,7 +631,7 @@ impl TemporalMemory {
         }
     }
 
-    fn activate_predicted_column<'a, I: Iterator<Item=&'a SegmentScore>>(&mut self, active_segs: I, learn: bool) {
+    fn activate_predicted_column<'a, I: Iterator<Item=&'a SegmentScore>>(&mut self, active_segs: &mut I, learn: bool) {
         for active_seg in active_segs {
             debug!("Reward {:?}", active_seg.segment);
             self.active_cells.insert(active_seg.segment.cell);
